@@ -9,6 +9,14 @@ git push -u origin master
 .
 echo sqlite-doc-3220000/ > .gitignore
 
+#luego de trabajar un poco y crear nuevos archivos
+
+git add .
+
+git commit -m avance
+
+git push -u origin master
+
 sudo apt-get install php5-cli
 
 sudo apt-get install php5-fpm php5-curl	php5-json;
@@ -88,12 +96,4 @@ create table as_spr(
 
 https://api.invertironline.com/token 
 
-{
-    "access_token": "9HKSGQbK89g3gDZ60I9q57NO1oq26PyNWV8LwaJks9KuH0MqYpa9XSw4yR83Lc7dM-y9m3stweXYVOscqyKGEGRefNfvZVa8E-WNtSgGtIQDsc9l7Iu0ZkmgKtwDAlytv7z4U1qtwnsHB5dyXfZwkgFqDx2jt-NRhSRo4WCk7QAhxBq5GHfSMadHat9mcQ5s7VRiqzjXsRXuyhEaoYB-onPcr611n6ng4irjTPfa5sd9nRsJSJOdFHWtPud20OYI_IAmFEBB-yYY07woZtkafq3Y6_CzIWrbZMrFQXy10Kg",
-    "token_type": "bearer",
-    "expires_in": 899,
-    "refresh_token": "BSkcZUughcC66pEKvv4kftxiv5BLswMCYUkIlp9uoECTTBfHhI-hC9xkdaW7MWwQQt0TmhqabWxHvTmPK8Xa_RXw7Mgk2tj7MtYqGz1Bm9EUA_Iayb9TSQ2CtLDu0TIrDK8QT8kp44tTvUTiAzUF99NHq_rFfUrUgTrEevGbMnXsR8Ecf_xowNJHGnd6aHEKr3K3BlHYFLIBfQiCwQV80yeM0QMag6AKrgH76q23LS5oFQy9AO7ECbhKKj_iTX_wZJ8UDOhCz79gefhO9EpXgeBgLSHxFq009YVlsgrEGJk",
-    ".issued": "Sat, 10 Feb 2018 21:41:15 GMT",
-    ".expires": "Sat, 10 Feb 2018 21:56:15 GMT"
-}
 

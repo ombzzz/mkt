@@ -1,6 +1,99 @@
 echo "# mkt" >> README.md
 git init
 git add README.md
-git commit -m "first commit"
+git config --global user.email "obiazzi@gmail.com"
+git config --global user.name "obiazzi"
+git commit -m "cs inicial"
 git remote add origin https://github.com/ombzzz/mkt.git
 git push -u origin master
+.
+echo sqlite-doc-3220000/ > .gitignore
+
+sudo apt-get install php5-cli
+
+sudo apt-get install php5-fpm php5-curl	php5-json;
+
+# en estos se puede cambiar la configuracion del cgi, por ej, el usuario con que corre
+# por ahora le dejo el usuario que viene por defecto: www-data
+# (www es el pool por defecto)
+#/etc/php5/fpm/php-fpm.conf
+#/etc/php5/fpm/pool.d/www.conf
+
+sudo apt-get install nginx
+
+#editar /etc/nginx/sites-enabled/default 
+
+server {
+	#listen   80; ## listen for ipv4; this line is default and implied
+	#listen   [::]:80 default_server ipv6only=on; ## listen for ipv6
+
+	#root /usr/share/nginx/www;
+	root /home/eliveuser/mkt;
+	index index.html;
+
+	# Make site accessible from http://localhost/
+	server_name localhost;
+
+	location / {
+		# First attempt to serve request as file, then
+		# as directory, then fall back to displaying a 404.
+		#try_files $uri $uri/ /index.html;
+		try_files $uri $uri/; 
+
+		# Uncomment to enable naxsi on this location
+		# include /etc/nginx/naxsi.rules
+	}
+
+	location /doc/ {
+		alias /usr/share/doc/;
+		autoindex on;
+		allow 127.0.0.1;
+		allow ::1;
+		deny all;
+	}
+
+    location  ~  \.php  {
+      fastcgi_split_path_info ^(.+?\.php)(/.*)$;
+      fastcgi_pass unix:/var/run/php5-fpm.sock;
+      fastcgi_index index.php;
+      # include the fastcgi_param setting
+      include fastcgi_params;
+      fastcgi_param  SCRIPT_FILENAME   $document_root$fastcgi_script_name;
+    }
+}
+
+
+
+sudo service nginx restart
+
+
+
+
+sqlite3 mkt.db
+
+create table as_spr(
+	tck,
+	mkt,
+	fec,
+	open,
+	close,
+	min,
+	max,
+	vol,
+	per,
+	yld,
+	primary key( tck, mkt, fec )
+);
+
+
+https://api.invertironline.com/token 
+
+{
+    "access_token": "9HKSGQbK89g3gDZ60I9q57NO1oq26PyNWV8LwaJks9KuH0MqYpa9XSw4yR83Lc7dM-y9m3stweXYVOscqyKGEGRefNfvZVa8E-WNtSgGtIQDsc9l7Iu0ZkmgKtwDAlytv7z4U1qtwnsHB5dyXfZwkgFqDx2jt-NRhSRo4WCk7QAhxBq5GHfSMadHat9mcQ5s7VRiqzjXsRXuyhEaoYB-onPcr611n6ng4irjTPfa5sd9nRsJSJOdFHWtPud20OYI_IAmFEBB-yYY07woZtkafq3Y6_CzIWrbZMrFQXy10Kg",
+    "token_type": "bearer",
+    "expires_in": 899,
+    "refresh_token": "BSkcZUughcC66pEKvv4kftxiv5BLswMCYUkIlp9uoECTTBfHhI-hC9xkdaW7MWwQQt0TmhqabWxHvTmPK8Xa_RXw7Mgk2tj7MtYqGz1Bm9EUA_Iayb9TSQ2CtLDu0TIrDK8QT8kp44tTvUTiAzUF99NHq_rFfUrUgTrEevGbMnXsR8Ecf_xowNJHGnd6aHEKr3K3BlHYFLIBfQiCwQV80yeM0QMag6AKrgH76q23LS5oFQy9AO7ECbhKKj_iTX_wZJ8UDOhCz79gefhO9EpXgeBgLSHxFq009YVlsgrEGJk",
+    ".issued": "Sat, 10 Feb 2018 21:41:15 GMT",
+    ".expires": "Sat, 10 Feb 2018 21:56:15 GMT"
+}
+

@@ -27,6 +27,14 @@ sudo apt-get install php5-fpm php5-curl	php5-json;
 #/etc/php5/fpm/php-fpm.conf
 #/etc/php5/fpm/pool.d/www.conf
 
+#editar /etc/php5/fpm/pool.d/www.conf agregar lo siguiente para que los errores php se muestren en pantalla
+#sino van solo a /var/log/nginx/error.log:
+php_flag[display_errors] = on
+php_flag[display_startup_errors] = on
+
+sudo service php5-fpm restart
+
+
 sudo apt-get install nginx
 
 #editar /etc/nginx/sites-enabled/default 
@@ -70,11 +78,7 @@ server {
     }
 }
 
-
-
 sudo service nginx restart
-
-
 
 
 sqlite3 mkt.db
@@ -94,6 +98,25 @@ create table as_spr(
 );
 
 
-https://api.invertironline.com/token 
+El método de autenticación que se utiliza en esta plataforma son tokens digitales. Los tokens son simples strings que se envían al servidor. Existen dos tipos de tokens: bearer token y refresh tokens. El bearer token se debe presentar en cada request para poder acceder al recurso solicitado. Este token es válido por 15 minutos desde que se lo solicita. Para renovar este token, se utiliza el refresh token. Para obtener el primer par de tokens se realiza un request POST especificando el nombre de usuario y contraseña a:
 
+https://api.invertironline.com/token 
+POST /token HTTP/1.1
+Host: api.invertironline.com
+Content-Type: application/x-www-form-urlencoded
+username=MIUSUARIO&password=MICONTRASEÑA&grant_type=password
+
+Una vez realizada esta petición, se debe utilizar el bearer token para acceder al recurso deseado, para hacer esto, se envía el token en el header de la petición con el Key “authorization” y como valor el token precedido de la palabra Bearer y un espacio como se ve en el ejemplo:
+
+
+GET /api/micuenta/miportafolio HTTP/1.1
+Host: api.invertironline.com
+Authorization: Bearer aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+
+Una vez expirado el bearer token, se procede a refrescar el mismo con el refresh token. Para realizar esto se debe mandar la siguiente petición al mismo endpoint donde realizamos el login (https://api.invertironline.com/token)
+
+POST /token HTTP/1.1
+Host: api.invertironline.com
+Content-Type: application/x-www-form-urlencoded
+refresh_token=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb&grant_type=refresh_token
 

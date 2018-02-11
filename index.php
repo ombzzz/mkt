@@ -20,6 +20,9 @@ function main(){
 	$bearer = $_POST["bearer"];
 	$sqlite = $_POST["sqlite"];
 
+	$last = $_POST["last"];
+	$pers = $_POST["pers"];
+
 	if( $login == "login" ){
 		$json = login( $usr, $pas );
 		$jsona = json_decode( $json, true );
@@ -62,11 +65,35 @@ function main(){
 	if( $precios == "precios" ){
 		$preciosx = precios( $bearer, $de, $a, $tck );
 		$preciosa = json_decode( $preciosx, true );
-		//$titulos = $a["titulos"];
 		print_r( $preciosa );
+	}
+	if( $sqlite == "sqlite" ){
+		sqlite();
+	}
+	if( $last == "last" ){
+		$lp = last( $tck );
+		echo "<p>ultimo precio de $tck fue " . $lp;
+	}
+	if( $pers == "pers" ){
+		pers( $tck, $de, $a, $bearer );
+	}
 
-		/*
-	 {
+	form( $usr, $pas, $panel, $cotiz, $tck, $de, $a, $bearer );
+}
+
+
+//------------------------------------------------
+// pers
+//------------------------------------------------
+function pers( $tck, $de, $a, $bearer ){
+
+	$preciosx = precios( $tck, $de, $a, $bearer );
+	$preciosa = json_decode( $preciosx, true );
+
+	foreach( $preciosa as $key => $value ){
+		echo $key . ":" . $value;
+	}
+	/*
     "ultimoPrecio": 125.35,
     "variacion": 0,
     "apertura": 131.2,
@@ -85,12 +112,48 @@ function main(){
     "cantidadOperaciones": 0
   }
   */
-	}
-	if( $sqlite == "sqlite" ){
-		sqlite();
+/*
+	$database = 'mkt';
+	$dsn = "sqlite:$database.db";
+
+	try {
+		$pdo = new PDO( $dsn ); // sqlite
+	} catch( PDOException $e ) {
+		die ( 'Oops' . $e ); // Exit, displaying an error message
 	}
 
-	form( $usr, $pas, $panel, $cotiz, $tck, $de, $a, $bearer );
+	$tck = strtolower( $tck );
+	//pds es un objeto pdostatement , que define interfaz iterable, por eso funciona el foreach 
+	$pds = $pdo->query( "select max( fec ) fec from as_pr where tck = '" . $tck. "'" );
+	$row = $pds->fetch();
+	return $row[ "fec" ];
+
+//	$price=20; $id=3;
+//$sql="UPDATE products SET price=$price,modified=now() WHERE id=$id";
+//$PDO->exec($sql); // or $rowcount=$PDO->exec($sql);
+*/
+
+}
+
+//------------------------------------------------
+// last
+//------------------------------------------------
+function last( $tck ){
+
+	$database = 'mkt';
+	$dsn = "sqlite:$database.db";
+
+	try {
+		$pdo = new PDO( $dsn ); // sqlite
+	} catch( PDOException $e ) {
+		die ( 'Oops' . $e ); // Exit, displaying an error message
+	}
+
+	$tck = strtolower( $tck );
+	//pds es un objeto pdostatement , que define interfaz iterable, por eso funciona el foreach 
+	$pds = $pdo->query( "select max( fec ) fec from as_pr where tck = '" . $tck. "'" );
+	$row = $pds->fetch();
+	return $row[ "fec" ];
 }
 
 
@@ -108,12 +171,22 @@ function sqlite(){
 		die ( 'Oops' . $e ); // Exit, displaying an error message
 	}
 
+	//pds es un objeto pdostatement , que define interfaz iterable, por eso funciona el foreach 
+	$pds = $pdo->query( "select tck from asset" );
+	foreach( $pds as $row ){
+		echo "<div>" . $row[ "tck" ] . "</div>";
+	}
+
+//	$price=20; $id=3;
+//$sql="UPDATE products SET price=$price,modified=now() WHERE id=$id";
+//$PDO->exec($sql); // or $rowcount=$PDO->exec($sql);
+
 }
 
 //------------------------------------------------
 // precios
 //------------------------------------------------
-function precios( $bearer, $de, $a, $tck ){
+function precios( $tck, $de, $a, $bearer ){
 	//GET /api/{mercado}/Titulos/{simbolo}/Cotizacion/seriehistorica/{fechaDesde}/{fechaHasta}/{ajustada}
 	//mercado: bCBA, nYSE, nASDAQ, aMEX, bCS, rOFX
 	$url = "https://api.invertironline.com/api/bCBA/Titulos/$tck/Cotizacion/seriehistorica/$de/$a/ajustada";
@@ -133,7 +206,7 @@ function precios( $bearer, $de, $a, $tck ){
 //------------------------------------------------
 function cotiz( $bearer, $panel ){
 
-	///api/{pais}/Titulos/Cotizacion/Paneles/{instrumento
+	///api/{pais}/Titulos/Cotizacion/Paneles/{instrumento}
 	//pais: argentina, brasil, chile, colombia, estados_unidos, mexico, peru
 	//instrumento: Acciones, Bonos, Opciones, Monedas, Cauciones, cHPD, Futuros
 		
@@ -179,11 +252,13 @@ function form( $usr, $pas, $panel, $cotiz, $tck, $de, $a, $bearer ){
 	<br>
 	<label>tck
 	<input name=tck value="$tck" type=text>
-	<label>de ( ej 2018-02-25 )
+	<label>de ( ej 2018-02-25 )  habria desde 3/12/2001
 	<input name=de value="$de" type=text>
 	<label>a
 	<input name=a value="$a" type=text>
 	<input type=submit name=precios value=precios>
+	<input type=submit name=last value=last>
+	<input type=submit name=pers value=pers>
 	<br>
 	<textarea cols=100 name=bearer>$bearer</textarea>
 	<hr>

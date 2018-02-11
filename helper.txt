@@ -93,20 +93,21 @@ create table asset (
 );
 
 
-create table as_spr(
+create table as_pr(
 	tck,
-	mkt,
 	fec,
 	open,
 	close,
 	min,
 	max,
 	vol,
+	montop,
 	per,
 	yld,
-	primary key( tck, mkt, fec )
+	primary key( tck, fec )
 );
 
+insert into as_pr( 'agro', '2018-02-02', 1, 2, 3, 4, 5, 6, 7, 8 );
 
 El método de autenticación que se utiliza en esta plataforma son tokens digitales. Los tokens son simples strings que se envían al servidor. Existen dos tipos de tokens: bearer token y refresh tokens. El bearer token se debe presentar en cada request para poder acceder al recurso solicitado. Este token es válido por 15 minutos desde que se lo solicita. Para renovar este token, se utiliza el refresh token. Para obtener el primer par de tokens se realiza un request POST especificando el nombre de usuario y contraseña a:
 

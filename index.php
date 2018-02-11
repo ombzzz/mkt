@@ -14,7 +14,11 @@ function main(){
 	$cotiz = $_POST["cotiz"];
 	$precios = $_POST["precios"];
 	$tck = $_POST["tck"];
+	$de = $_POST["de"];
+	$a = $_POST["a"];
+	$panel = $_POST["panel"];
 	$bearer = $_POST["bearer"];
+	$sqlite = $_POST["sqlite"];
 
 	if( $login == "login" ){
 		$json = login( $usr, $pas );
@@ -23,7 +27,7 @@ function main(){
 		$bearer = $jsona["access_token"];
 	}
 	if( $cotiz == "cotiz" ){
-		$cotizx = cotiz( $bearer );
+		$cotizx = cotiz( $bearer, $panel );
 		$cotiza = json_decode( $cotizx, true );
 		$titulos = $cotiza["titulos"];
 
@@ -56,7 +60,7 @@ function main(){
 		}
 	}
 	if( $precios == "precios" ){
-		$preciosx = precios( $bearer, $tck );
+		$preciosx = precios( $bearer, $de, $a, $tck );
 		$preciosa = json_decode( $preciosx, true );
 		//$titulos = $a["titulos"];
 		print_r( $preciosa );
@@ -82,18 +86,37 @@ function main(){
   }
   */
 	}
+	if( $sqlite == "sqlite" ){
+		sqlite();
+	}
 
-	form( $usr, $pas, $bearer );
+	form( $usr, $pas, $panel, $cotiz, $tck, $de, $a, $bearer );
 }
 
 
 //------------------------------------------------
+// sqlite
+//------------------------------------------------
+function sqlite(){
+
+	$database = 'mkt';
+	$dsn = "sqlite:$database.db";
+
+	try {
+		$pdo = new PDO( $dsn ); // sqlite
+	} catch( PDOException $e ) {
+		die ( 'Oops' . $e ); // Exit, displaying an error message
+	}
+
+}
+
+//------------------------------------------------
 // precios
 //------------------------------------------------
-function precios( $bearer, $tck ){
+function precios( $bearer, $de, $a, $tck ){
 	//GET /api/{mercado}/Titulos/{simbolo}/Cotizacion/seriehistorica/{fechaDesde}/{fechaHasta}/{ajustada}
 	//mercado: bCBA, nYSE, nASDAQ, aMEX, bCS, rOFX
-	$url = "https://api.invertironline.com/api/bCBA/Titulos/$tck/Cotizacion/seriehistorica/2018-02-05/2018-02-08/ajustada";
+	$url = "https://api.invertironline.com/api/bCBA/Titulos/$tck/Cotizacion/seriehistorica/$de/$a/ajustada";
 	//echo "cotiz: $url";
 
 	$ch = curl_init();
@@ -108,7 +131,7 @@ function precios( $bearer, $tck ){
 //------------------------------------------------
 // cotiz
 //------------------------------------------------
-function cotiz( $bearer ){
+function cotiz( $bearer, $panel ){
 
 	///api/{pais}/Titulos/Cotizacion/Paneles/{instrumento
 	//pais: argentina, brasil, chile, colombia, estados_unidos, mexico, peru
@@ -119,8 +142,9 @@ function cotiz( $bearer ){
 	//panel(argentina): Merval, Panel General, Merval 25, Merval Argentina, Burcap, CEDEARs
 
 	//$url = "https://api.invertironline.com/api/argentina/Titulos/Cotizacion/Paneles/Acciones";
-	$url = "https://api.invertironline.com/api/Cotizaciones/Acciones/Merval/argentina";
-	//echo "cotiz: $url";
+	$panel = str_replace( " ", "%20", $panel );
+	$url = "https://api.invertironline.com/api/Cotizaciones/Acciones/$panel/argentina";
+	echo "cotiz: $url";
 
 	$ch = curl_init();
 	curl_setopt( $ch, CURLOPT_URL, $url );
@@ -136,7 +160,7 @@ function cotiz( $bearer ){
 //------------------------------------------------
 // form
 //------------------------------------------------
-function form( $usr, $pas, $bearer ){
+function form( $usr, $pas, $panel, $cotiz, $tck, $de, $a, $bearer ){
 
 	echo <<<FINN
 	<h4>mkt</h4>
@@ -149,13 +173,21 @@ function form( $usr, $pas, $bearer ){
 	<input name=pas value="" type=text>
 	<br><input type=submit name=login value=login>
 	<hr>
+	<label>panel ( Merval, Panel General, Merval 25, Merval Argentina, Burcap, CEDEARs )
+	<input name=panel value="$panel" type=text>
 	<input type=submit name=cotiz value=cotiz>
 	<br>
 	<label>tck
 	<input name=tck value="$tck" type=text>
+	<label>de ( ej 2018-02-25 )
+	<input name=de value="$de" type=text>
+	<label>a
+	<input name=a value="$a" type=text>
 	<input type=submit name=precios value=precios>
 	<br>
 	<textarea cols=100 name=bearer>$bearer</textarea>
+	<hr>
+	<input type=submit name=sqlite value=sqlite>
 	</form>
 
 FINN;

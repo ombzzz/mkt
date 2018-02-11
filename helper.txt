@@ -80,8 +80,18 @@ server {
 
 sudo service nginx restart
 
+sudo apt-get install sqlite php5-sqlite
 
 sqlite3 mkt.db
+
+create table asset (
+	tck,
+	den,
+	sect,
+	mkt,
+	mervl, primary key( tck )
+);
+
 
 create table as_spr(
 	tck,

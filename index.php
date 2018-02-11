@@ -22,6 +22,7 @@ function main(){
 
 	$last = $_POST["last"];
 	$pers = $_POST["pers"];
+	$upd = $_POST["upd"];
 
 	if( $login == "login" ){
 		$json = login( $usr, $pas );
@@ -63,7 +64,7 @@ function main(){
 		}
 	}
 	if( $precios == "precios" ){
-		$preciosx = precios( $bearer, $de, $a, $tck );
+		$preciosx = precios( $tck, $de, $a, $bearer );
 		$preciosa = json_decode( $preciosx, true );
 		print_r( $preciosa );
 	}
@@ -76,23 +77,102 @@ function main(){
 	}
 	if( $pers == "pers" ){
 		pers( $tck, $de, $a, $bearer );
+
+	}
+	if( $upd == "upd" ){
+		upd( $tck, $bearer );
 	}
 
 	form( $usr, $pas, $panel, $cotiz, $tck, $de, $a, $bearer );
 }
 
+//------------------------------------------------
+// fecha_offset
+//------------------------------------------------
+function fecha_offset( $str, $dias ){
+	$time = strtotime( $str );
+	$time = $time + ( $dias * 24 * 60 * 60);
+	return date( 'Y-m-d', $time );
+}
+
+//------------------------------------------------
+// fecha_hoy
+//------------------------------------------------
+function fecha_hoy(){
+	return date('Y-m-d');
+}
+
+//------------------------------------------------
+// upd
+//------------------------------------------------
+function upd( $tck, $bearer ){
+	$lp = last( $tck );
+	if( $lp == null ){
+		echo "<p>$tck no tiene precios registrados";
+		$de = "2001-12-03";
+	}
+	else {
+		echo "<p>ultimo precio de $tck fue " . $lp;
+		$de = fecha_offset( $lp, 1 ); 
+	}
+	$a = fecha_hoy();
+	echo "<p>llamando a pers de $de a $a para $tck</p>";
+	$cant = pers( $tck, $de, $a, $bearer );
+	echo "<p>actualizados $cant precios de $tck de $de a $a</p>";
+}
 
 //------------------------------------------------
 // pers
 //------------------------------------------------
 function pers( $tck, $de, $a, $bearer ){
 
+	$cant = 0;
 	$preciosx = precios( $tck, $de, $a, $bearer );
 	$preciosa = json_decode( $preciosx, true );
 
-	foreach( $preciosa as $key => $value ){
-		echo $key . ":" . $value;
+	$database = 'mkt';
+	$dsn = "sqlite:$database.db";
+	try {
+		$pdo = new PDO( $dsn ); // sqlite
+	} catch( PDOException $e ) {
+		die ( 'Oops' . $e ); // Exit, displaying an error message
 	}
+
+	foreach( $preciosa as $key => $value ){
+		$tck = strtolower( $tck );
+		$fec = substr( $value["fechaHora"], 0, 10 );
+		$open = $value["apertura"];
+		$close = $value["ultimoPrecio"];
+		$min = $value["minimo"];
+		$max = $value["maximo"];
+		$vol = $value["volumenNominal"];
+		$montop = $value["montoOperado"];
+
+		$sql = <<<FINN
+		insert into as_pr( tck, fec, open, close, min, max, vol, montop ) values (
+			'$tck',
+			'$fec',
+			$open,
+			$close,
+			$min,
+			$max,
+			$vol,
+			$montop
+		)
+FINN;
+
+		//echo $sql . "<br>";
+		$rowcount = $pdo->exec( $sql );
+		if( ! $rowcount > 0 ){
+			print_r( $pdo->errorInfo() ) . "<br>";
+		}
+		else {
+			$cant = $cant + 1;
+		}
+	}
+	
+	return $cant;
+
 	/*
     "ultimoPrecio": 125.35,
     "variacion": 0,
@@ -112,27 +192,6 @@ function pers( $tck, $de, $a, $bearer ){
     "cantidadOperaciones": 0
   }
   */
-/*
-	$database = 'mkt';
-	$dsn = "sqlite:$database.db";
-
-	try {
-		$pdo = new PDO( $dsn ); // sqlite
-	} catch( PDOException $e ) {
-		die ( 'Oops' . $e ); // Exit, displaying an error message
-	}
-
-	$tck = strtolower( $tck );
-	//pds es un objeto pdostatement , que define interfaz iterable, por eso funciona el foreach 
-	$pds = $pdo->query( "select max( fec ) fec from as_pr where tck = '" . $tck. "'" );
-	$row = $pds->fetch();
-	return $row[ "fec" ];
-
-//	$price=20; $id=3;
-//$sql="UPDATE products SET price=$price,modified=now() WHERE id=$id";
-//$PDO->exec($sql); // or $rowcount=$PDO->exec($sql);
-*/
-
 }
 
 //------------------------------------------------
@@ -176,21 +235,17 @@ function sqlite(){
 	foreach( $pds as $row ){
 		echo "<div>" . $row[ "tck" ] . "</div>";
 	}
-
-//	$price=20; $id=3;
-//$sql="UPDATE products SET price=$price,modified=now() WHERE id=$id";
-//$PDO->exec($sql); // or $rowcount=$PDO->exec($sql);
-
 }
 
 //------------------------------------------------
 // precios
 //------------------------------------------------
 function precios( $tck, $de, $a, $bearer ){
+	$tck = strtoupper($tck);
 	//GET /api/{mercado}/Titulos/{simbolo}/Cotizacion/seriehistorica/{fechaDesde}/{fechaHasta}/{ajustada}
 	//mercado: bCBA, nYSE, nASDAQ, aMEX, bCS, rOFX
 	$url = "https://api.invertironline.com/api/bCBA/Titulos/$tck/Cotizacion/seriehistorica/$de/$a/ajustada";
-	//echo "cotiz: $url";
+	echo "<p>precios: $url</p>";
 
 	$ch = curl_init();
 	curl_setopt( $ch, CURLOPT_URL, $url );
@@ -259,6 +314,7 @@ function form( $usr, $pas, $panel, $cotiz, $tck, $de, $a, $bearer ){
 	<input type=submit name=precios value=precios>
 	<input type=submit name=last value=last>
 	<input type=submit name=pers value=pers>
+	<input type=submit name=upd value=upd>
 	<br>
 	<textarea cols=100 name=bearer>$bearer</textarea>
 	<hr>

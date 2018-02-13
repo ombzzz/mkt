@@ -3,3 +3,5 @@ mkt.db
 mkt.log
 *.log*
 hs/
+*.csv
+*.xlsx

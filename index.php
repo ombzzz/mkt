@@ -1,4 +1,14 @@
+<?
+if( strlen( $_GET["json"] ) > 0 ){
+	json( $_GET["json"] );
+	return;
+}
+?>
+
 <html>
+<script src="jquery-3.3.1.min.js"></script>
+<script src="hs/code/highstock.js"></script>
+<script src="hs/code/modules/exporting.js"></script>
 <style>
 .log {
 	white-space: pre-wrap;
@@ -7,9 +17,11 @@
 	color: red;
 }
 </style>
-<?
 
-main();
+
+<?
+echo main();
+
 
 //------------------------------------------------
 // main
@@ -21,6 +33,8 @@ function main(){
 	$pas = $_POST["pas"];
 	$cotiz = $_POST["cotiz"];
 	$precios = $_POST["precios"];
+	$preciosdb = $_POST["preciosdb"];
+	$graf = $_POST["graf"];
 	$tck = $_POST["tck"];
 	$de = $_POST["de"];
 	$a = $_POST["a"];
@@ -32,6 +46,8 @@ function main(){
 	$pers = $_POST["pers"];
 	$upd = $_POST["upd"];
 	$updall = $_POST["updall"];
+
+	$json = $_GET["json"];
 
 	if( $login == "login" ){
 		$json = login( $usr, $pas );
@@ -52,6 +68,16 @@ function main(){
 		$preciosx = precios( $tck, $de, $a, $bearer );
 		$preciosa = json_decode( $preciosx, true );
 		print_r( $preciosa );
+	}
+	if( $preciosdb == "preciosdb" ){
+		$pra = preciosdb( $tck );
+		foreach( $pra as $key => $pr ){
+			echo "<div class=precio><span>" . $pr["fec"] . ": " . "</span><span>" 
+			 . number_format( (float) $pr["close"], 2, '.', '' ) . "</span></div>";
+		}
+	}
+	if( $graf == "graf" ){
+		graf( $tck );
 	}
 	if( $sqlite == "sqlite" ){
 		sqlite();
@@ -139,6 +165,44 @@ function assets( $mkt ){
 	$i = 0;
 	foreach( $pds as $row )
 		$res[$i++] = $row[ "tck" ];
+
+	$pdo = null; //para close connection 
+	$pds = null; //para close connection
+	
+	return $res;
+}
+
+//------------------------------------------------
+// preciosdb
+//------------------------------------------------
+function preciosdb( $tck, $de = "2018-01-01", $a = "hoy" ){
+	if( $a == "hoy" )
+		$a = fecha_hoy();
+
+	$database = 'mkt';
+	$dsn = "sqlite:$database.db";
+
+	try {
+		$pdo = new PDO( $dsn ); // sqlite
+	} catch( PDOException $e ) {
+		loguear( "updall: error en conn: " . $e->getMessage(), "error" );
+		return;
+	}
+
+	$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+	//pds es un objeto pdostatement , que define interfaz iterable, por eso funciona el foreach 
+	$sql = "select * from as_pr ap where ap.tck = '" . $tck . "' and ap.fec between '" . $de . "' and '" . $a . "' order by fec";
+	try {
+		$pds = $pdo->query( $sql );
+	} catch( PDOException $e ) {
+		loguear( "updall: error en sel: " . $e->getMessage(), "error" );
+		return;
+	}
+
+	$i = 0;
+	foreach( $pds as $row )
+		$res[$i++] = $row;
 
 	$pdo = null; //para close connection 
 	$pds = null; //para close connection
@@ -405,6 +469,8 @@ function form( $usr, $pas, $panel, $cotiz, $tck, $de, $a, $bearer ){
 	<label>a
 	<input name=a value="$a" type=text>
 	<input type=submit name=precios value=precios>
+	<input type=submit name=preciosdb value=preciosdb>
+	<input type=submit name=graf value=graf>
 	<input type=submit name=last value=last>
 	<input type=submit name=pers value=pers>
 	<input type=submit name=upd value=upd>
@@ -517,6 +583,57 @@ function sqlite(){
 	}
 	$pdo = null; //para close connection 
 	$pds = null; //para close connection
+}
+
+//------------------------------------------------
+// json
+//------------------------------------------------
+function json( $tck ){
+	header('Content-type: application/json');
+//echo 
+//"[
+//[1297728000000,51.41]
+//]";
+//	 return;
+//echo "[[1297728000000,51.41]]";
+	// return;
+	$ret = "[\n";
+	$pra = preciosdb( $tck );
+	foreach( $pra as $key => $pr ){
+		$ret = $ret . "[" . strtotime( $pr["fec"] ) . "000" . "," . number_format( (float) $pr["close"], 2, '.', '' ) . "]";
+		if( $key < count( $pra ) - 1 )
+			$ret = $ret . ",\n";
+	}
+	$ret = $ret . "\n]";
+	echo $ret;
+}
+
+
+function graf( $tck ){
+
+	echo <<<FINN
+<div id="container" style="height: 400px; min-width: 310px"></div>
+
+<script>
+
+$.getJSON( 'index.php?json=$tck', function( data ){
+	Highcharts.stockChart('container', {
+		rangeSelector: {selected: 1 },
+
+		title: {text: 'molinos semino'},
+
+		series: [
+		{
+			name: 'semi',
+			data: data,
+			tooltip: {valueDecimals: 2 }
+		}
+		]
+	});
+
+});
+</script>
+FINN;
 }
 
 ?>

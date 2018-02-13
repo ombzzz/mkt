@@ -1,0 +1,56 @@
+<!DOCTYPE HTML>
+<html>
+
+<script src="jquery-3.3.1.min.js"></script>
+<script src="hs/code/highstock.js"></script>
+<script src="hs/code/modules/exporting.js"></script>
+<style>
+.b {
+	border-radius: 5;
+	border: 3px solid gray;
+	background-color: #fafafa;
+	width: 20%;
+	margin: 5px;
+	padding: 3px;
+}
+</style>	
+
+<div id="container" style="height: 400px; min-width: 310px"></div>
+
+<script>
+
+/*
+Highcharts.stockChart( 'container', {
+	rangeSelector: { selected: 1 },
+	title: { text: 'molinos semino' },
+	series: [
+	{
+		name: 'semi',
+		data: [0,4,2,3,5],
+		//tooltip: {valueDecimals: 2 }
+	}
+	]
+});
+*/
+console.log( "holas" );
+
+$.getJSON( 'index.php?json=semi', function( data ){
+	Highcharts.stockChart('container', {
+		rangeSelector: {selected: 1 },
+
+		title: {text: 'molinos semino'},
+
+		series: [
+		{
+			name: 'semi',
+			data: data,
+			tooltip: {valueDecimals: 2 }
+		}
+		]
+	});
+
+});
+
+
+</script>
+</html>

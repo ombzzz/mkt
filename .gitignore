@@ -1,2 +1,5 @@
 sqlite-doc-3220000/
 mkt.db
+mkt.log
+*.log*
+hs/

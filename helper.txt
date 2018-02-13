@@ -22,6 +22,11 @@ git config credential.helper store
 git config --global credential.helper 'cache --timeout 36000'
 #After enabling credential caching, it will be cached for 7200 seconds (2 hour) * 5.
 
+
+echo mkt.db >> .gitignore
+git rm --cached mkt.db
+
+
 sudo apt-get install php5-cli
 
 sudo apt-get install php5-fpm php5-curl	php5-json;
@@ -89,6 +94,10 @@ sudo apt-get install sqlite php5-sqlite
 
 sqlite3 mkt.db
 
+sudo chown www-data mkt.db
+sudo chgrp eliveuser mkt.db
+sudo chmod 664 mkt.db
+
 create table asset (
 	tck,
 	den,
@@ -111,6 +120,21 @@ create table as_pr(
 	yld,
 	primary key( tck, fec )
 );
+
+create table aux_merval(
+ fecha,
+ apertura,
+ maximo,
+ minimo,
+ cierre,
+ volumen,
+ openint,
+ primary key( fecha )
+);
+
+.separator ,
+.import merval.csv aux_merval
+
 
 insert into as_pr values( 'agro', '2018-02-02', 1, 2, 3, 4, 5, 6, 7, 8 );
 

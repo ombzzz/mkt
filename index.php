@@ -1,6 +1,6 @@
 <?
 if( strlen( $_GET["json"] ) > 0 ){
-	json( $_GET["json"] );
+	json( $_GET["json"], $_GET["de"], $_GET["a"] );
 	return;
 }
 ?>
@@ -70,14 +70,14 @@ function main(){
 		print_r( $preciosa );
 	}
 	if( $preciosdb == "preciosdb" ){
-		$pra = preciosdb( $tck );
+		$pra = preciosdb( $tck, $de, $a );
 		foreach( $pra as $key => $pr ){
 			echo "<div class=precio><span>" . $pr["fec"] . ": " . "</span><span>" 
 			 . number_format( (float) $pr["close"], 2, '.', '' ) . "</span></div>";
 		}
 	}
 	if( $graf == "graf" ){
-		graf( $tck );
+		graf( $tck, $de, $a );
 	}
 	if( $sqlite == "sqlite" ){
 		sqlite();
@@ -402,6 +402,24 @@ function cotiz( $bearer, $panel ){
 	//instrumento: Acciones, Bonos, Opciones, Monedas, Cauciones, cHPD, Futuros
 	//panel(argentina): Merval, Panel General, Merval 25, Merval Argentina, Burcap, CEDEARs
 
+	// usa paneles:
+	// Dow Jones Industrial
+	// Dow Jones Transportation
+	// Dow Jones Utilities
+	// Nasdaq 100
+	// SP100
+	// SP500
+	// SP500 Value
+	// SP500 Growth
+	// SP400 MidCap
+	// SP400 MidCap Value
+	// S400 MidCap Growth
+	// SP600 SmallCap
+	// SP600 SmallCap Value
+	// SP600 SmallCap Growth
+	// SP500 Dividendos
+	// ADRs
+
 	//$url = "https://api.invertironline.com/api/argentina/Titulos/Cotizacion/Paneles/Acciones";
 	$panel = str_replace( " ", "%20", $panel );
 	$url = "https://api.invertironline.com/api/Cotizaciones/Acciones/$panel/argentina";
@@ -588,7 +606,7 @@ function sqlite(){
 //------------------------------------------------
 // json
 //------------------------------------------------
-function json( $tck ){
+function json( $tck, $de, $a ){
 	header('Content-type: application/json');
 //echo 
 //"[
@@ -598,7 +616,7 @@ function json( $tck ){
 //echo "[[1297728000000,51.41]]";
 	// return;
 	$ret = "[\n";
-	$pra = preciosdb( $tck );
+	$pra = preciosdb( $tck, $de, $a );
 	foreach( $pra as $key => $pr ){
 		$ret = $ret . "[" . strtotime( $pr["fec"] ) . "000" . "," . number_format( (float) $pr["close"], 2, '.', '' ) . "]";
 		if( $key < count( $pra ) - 1 )
@@ -609,14 +627,14 @@ function json( $tck ){
 }
 
 
-function graf( $tck ){
+function graf( $tck, $de, $a ){
 
 	echo <<<FINN
-<div id="container" style="height: 400px; min-width: 310px"></div>
+<div id="container" style="height: 600px; min-width: 310px"></div>
 
 <script>
 
-$.getJSON( 'index.php?json=$tck', function( data ){
+$.getJSON( 'index.php?json=$tck&de=$de&a=$a', function( data ){
 	Highcharts.stockChart('container', {
 		rangeSelector: {selected: 1 },
 

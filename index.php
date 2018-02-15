@@ -32,6 +32,7 @@ function main(){
 	$usr = $_POST["usr"];
 	$pas = $_POST["pas"];
 	$cotiz = $_POST["cotiz"];
+	$panel = $_POST["panel"];
 	$precios = $_POST["precios"];
 	$preciosdb = $_POST["preciosdb"];
 	$graf = $_POST["graf"];
@@ -54,20 +55,28 @@ function main(){
 		$jsona = json_decode( $json, true );
 		$bearer = $jsona["access_token"];
 	}
-	if( $cotiz == "cotiz" ){
-		$cotizx = cotiz( $bearer, $panel );
-		$cotiza = json_decode( $cotizx, true );
-		$titulos = $cotiza["titulos"];
+	if( $panel == "panel" ){
+		$panela = panel( $bearer, $panel );
+		$titulos = $panela["titulos"];
 
-		//formato del json en la funcion c-otiz
+		//formato del json en la funcion c-otiz 
 		foreach( $titulos as $key => $value ){
 			echo "<div>".$value["simbolo"]."</div>";
 		}
 	}
+	if( $cotiz == "cotiz" ){
+		$cotiza = cotiz( $bearer, $tck );
+		foreach( $cotiza as $key => $value ){
+			echo "<div>" .$key . ":" . $value ."</div>";
+		}
+	}
 	if( $precios == "precios" ){
-		$preciosx = precios( $tck, $de, $a, $bearer );
-		$preciosa = json_decode( $preciosx, true );
-		print_r( $preciosa );
+		$preciosa = precios( $tck, $de, $a, $bearer );
+		if( $preciosa ){
+			foreach( $preciosa as $k=>$v ){
+				echo "<div>" . $v["fechaHora"] . ": " . $v["ultimoPrecio"] . "</div>";
+			}
+		}
 	}
 	if( $preciosdb == "preciosdb" ){
 		$pra = preciosdb( $tck, $de, $a );
@@ -247,14 +256,17 @@ function pers( $tck, $de, $a, $bearer ){
 	loguear( "pers: invocado para $tck de $de a $a" );
 
 	$cant = 0;
-	$preciosx = precios( $tck, $de, $a, $bearer );
-	$preciosa = json_decode( $preciosx, true );
-	if( count( $preciosa ) == 1 && key( $preciosa ) == "message" ){
-		loguear( "pers $tck $de $a: problemas en get de precios: " . key( $preciosa ) . "->" . $preciosa["message"], "error" );
+	$preciosa = precios( $tck, $de, $a, $bearer );
+	if( !$preciosa ){
+		loguear( "pers $tck $de $a: problemas(1) en get de precios: " . key( $preciosa ) . "->" . $preciosa["message"], "error" );
 		return -1;
 	}
 	else if( $preciosa[0]["fechaHora"] > 0 ){
 	 loguear( "pers $tck $de $a: precios obtenidos, recorriendo" );
+	}
+	else {
+		loguear( "pers $tck $de $a: problemas(2) en get de precios: " . key( $preciosa ) . "->" . $preciosa["message"], "error" );
+		return -1;
 	}
 
 	$database = 'mkt';
@@ -321,25 +333,6 @@ FINN;
 
 	return $cant;
 
-	/*
-    "ultimoPrecio": 125.35,
-    "variacion": 0,
-    "apertura": 131.2,
-    "maximo": 132,
-    "minimo": 125,
-    "fechaHora": "2018-02-07T17:00:34.037",
-    "tendencia": "sube",
-    "cierreAnterior": 0,
-    "montoOperado": 51400059.55,
-    "volumenNominal": 402982,
-    "precioPromedio": 0,
-    "moneda": "peso_Argentino",
-    "precioAjuste": 0,
-    "interesesAbiertos": 0,
-    "puntas": null,
-    "cantidadOperaciones": 0
-  }
-  */
 }
 
 //------------------------------------------------
@@ -370,6 +363,24 @@ function last( $tck ){
 
 //------------------------------------------------
 // precios
+/*
+  "ultimoPrecio": 125.35,
+  "variacion": 0,
+  "apertura": 131.2,
+  "maximo": 132,
+  "minimo": 125,
+  "fechaHora": "2018-02-07T17:00:34.037",
+  "tendencia": "sube",
+  "cierreAnterior": 0,
+  "montoOperado": 51400059.55,
+  "volumenNominal": 402982,
+  "precioPromedio": 0,
+  "moneda": "peso_Argentino",
+  "precioAjuste": 0,
+  "interesesAbiertos": 0,
+  "puntas": null,
+  "cantidadOperaciones": 0
+*/
 //------------------------------------------------
 function precios( $tck, $de, $a, $bearer ){
 	$tck = strtoupper($tck);
@@ -385,14 +396,25 @@ function precios( $tck, $de, $a, $bearer ){
 	curl_setopt( $ch, CURLOPT_RETURNTRANSFER, true );
 	$server_output = curl_exec( $ch );
 	curl_close( $ch );
-	loguear( "precios: volvio curl, devolviendo precios" );
-  return $server_output;
+
+	$preciosa = json_decode( $server_output, true );
+	if( count( $preciosa ) == 1 && key( $preciosa ) == "message" ){
+		loguear( "precios: error: " . $preciosa["message"], "error" );
+		return false;
+	}
+
+	if( $a == fecha_hoy() ){
+		//serie historica no devuelve el precio de hoy, lo buscamos por cotizacion
+		$cotiz = cotiz( $bearer, $tck );
+		array_unshift( $preciosa, $cotiz );
+	}
+  return $preciosa;
 }
 
 //------------------------------------------------
-// cotiz
+// panel
 //------------------------------------------------
-function cotiz( $bearer, $panel ){
+function panel( $bearer, $panel ){
 
 	///api/{pais}/Titulos/Cotizacion/Paneles/{instrumento}
 	//pais: argentina, brasil, chile, colombia, estados_unidos, mexico, peru
@@ -423,7 +445,7 @@ function cotiz( $bearer, $panel ){
 	//$url = "https://api.invertironline.com/api/argentina/Titulos/Cotizacion/Paneles/Acciones";
 	$panel = str_replace( " ", "%20", $panel );
 	$url = "https://api.invertironline.com/api/Cotizaciones/Acciones/$panel/argentina";
-	echo "cotiz: $url";
+	loguear( "panel: $url" );
 
 	$ch = curl_init();
 	curl_setopt( $ch, CURLOPT_URL, $url );
@@ -431,7 +453,8 @@ function cotiz( $bearer, $panel ){
 	curl_setopt( $ch, CURLOPT_RETURNTRANSFER, true );
 	$server_output = curl_exec( $ch );
 	curl_close( $ch );
-  return $server_output;
+	$panela = json_decode( $server_output, true );
+  return $panela;
 
 	//{
 	// "simbolo": "AGRO",
@@ -461,6 +484,41 @@ function cotiz( $bearer, $panel ){
 
 
 //------------------------------------------------
+// cotiz
+//
+// ultimoPrecio:22.8
+// variacion:1.33
+// apertura:22.7
+// maximo:23.15
+// minimo:21.95
+// fechaHora:2018-02-14T17:00:06.0980769-03:00
+// tendencia:sube
+// cierreAnterior:22.5
+// montoOperado:1838556.05
+// volumenNominal:550
+// precioPromedio:0
+// moneda:peso_Argentino
+// precioAjuste:0
+// interesesAbiertos:0
+// puntas:Array
+// cantidadOperaciones:137
+//------------------------------------------------
+function cotiz( $bearer, $tck ){
+	//$url = "https://api.invertironline.com/api/argentina/Titulos/Cotizacion/Paneles/Acciones";
+	$tck = strtoupper($tck);
+	$url = "https://api.invertironline.com/api/bCBA/Titulos/$tck/Cotizacion";
+
+	$ch = curl_init();
+	curl_setopt( $ch, CURLOPT_URL, $url );
+	curl_setopt( $ch, CURLOPT_HTTPHEADER, array( "Authorization: Bearer $bearer" ) );
+	curl_setopt( $ch, CURLOPT_RETURNTRANSFER, true );
+	$server_output = curl_exec( $ch );
+	curl_close( $ch );
+	$cotiza = json_decode( $server_output, true );
+  return $cotiza;
+}
+
+//------------------------------------------------
 // form
 //------------------------------------------------
 function form( $usr, $pas, $panel, $cotiz, $tck, $de, $a, $bearer ){
@@ -473,12 +531,12 @@ function form( $usr, $pas, $panel, $cotiz, $tck, $de, $a, $bearer ){
 	<input name=usr value="$usr" type=text>
 	<br>
 	<lable>pas
-	<input name=pas value="" type=text>
+	<input name=pas value="" type=password>
 	<br><input type=submit name=login value=login>
 	<hr>
 	<label>panel ( Merval, Panel General, Merval 25, Merval Argentina, Burcap, CEDEARs )
 	<input name=panel value="$panel" type=text>
-	<input type=submit name=cotiz value=cotiz>
+	<input type=submit name=panel value=panel>
 	<br>
 	<label>tck
 	<input name=tck value="$tck" type=text>
@@ -486,6 +544,7 @@ function form( $usr, $pas, $panel, $cotiz, $tck, $de, $a, $bearer ){
 	<input name=de value="$de" type=text>
 	<label>a
 	<input name=a value="$a" type=text>
+	<input type=submit name=cotiz value=cotiz>
 	<input type=submit name=precios value=precios>
 	<input type=submit name=preciosdb value=preciosdb>
 	<input type=submit name=graf value=graf>

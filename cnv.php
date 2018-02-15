@@ -36,10 +36,21 @@ function main(){
 	form( $tck );
 }
 
+$ch = curl_init();
+curl_setopt($ch, CURLOPT_URL, "http://www.google.com");
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+$body = curl_exec($ch); 
+
 //------------------------------------------------
 // bal
 //------------------------------------------------
 function bal( $tck ){
+
+	if( strlen( $tck) == 0 ){
+		loguear( "bal: por favor pase tck", "error" );
+		return;
+	}
+	loguear( "bal: invocado para $tck" );
 
 	$url = "http://www.cnv.gob.ar/InfoFinan/Zips.asp?Lang=0&CodiSoc=3&DescriSoc=Agrometal%20Sociedad%20Anonima%20Industrial%20%20%20%20%20%20&Letra=A&TipoDocum=1&TipoArchivo=1&TipoBalance=1";
 
@@ -60,55 +71,113 @@ div.contenido_derecha
 
 	$es = $html->find( 'div.contenido_derecha', 0 )->find( 'table', 1)->find( tr );
 	$i = 0;
+	$j = 0;
 	foreach( $es as $k=> $v ){
 		if( $i >= 2 ){
 			$x = $v->find( 'td' );
-			echo "http://www.cnv.gob.ar" . $x[0]->find( "a", 0)->href;
-			echo $x[0]->plaintext;
-			echo $x[1]->plaintext;
-			echo $x[2]->plaintext;
-			echo $x[3]->plaintext;
-			echo "<br>\n";	
+			//echo $x[0]->plaintext;
+			$files[$j]["url"] = "http://www.cnv.gob.ar" . $x[0]->find( "a", 0)->href;
+			$files[$j]["cfec"] = trim( $x[0]->plaintext );
+			$files[$j]["cfec"] = str_replace( "&nbsp;", " ", $files[$j]["cfec"] );
+			$files[$j]["rfec"] = trim( $x[1]->plaintext );
+			$files[$j]["nom"] = trim( $x[2]->plaintext );
+			$files[$j]["id"] = trim( $x[3]->plaintext );
+			$j++;
 		}
 		$i++;
-	}
-	return;
-
-	$ret['Title'] = $html->find( 'title', 0 )->innertext;
-	$ret['Rating'] = $html->find( 'div[class="general rating"] b', 0 )->innertext;
-
-	// get overview
-	foreach( $html->find( 'div[class="info"]' ) as $div ){
-		// skip user comments
-		if($div->find('h5', 0)->innertext=='User Comments:')
-			return $ret;
-
-		$key = '';
-		$val = '';
-
-		foreach( $div->find('*') as $node ){
-			if( $node->tag == 'h5' )
-				$key = $node->plaintext;
-
-			if( $node->tag == 'a' && $node->plaintext != 'more' )
-				$val .= trim( str_replace( "\n", '', $node->plaintext ) );
-
-			if( $node->tag=='text' )
-				$val .= trim( str_replace( "\n", '', $node->plaintext ) );
-		}
-
-		$ret[$key] = $val;
 	}
 
 	// clean up memory
 	$html->clear();
 	unset($html);
 
-	foreach( $ret as $k => $v )
-  	echo '<strong>'.$k.' </strong>'.$v.'<br>';
-
+	if( ! file_exists( "_" . $tck ) ){
+		mkdir( "_" . $tck, 0777 );
+	}
+	foreach( $files as $k => $v ){
+		$fx = file_cnv2loc( $v );
+		$fx = "_" . $tck . "/" . $fx;
+		if( file_exists( $fx ) ){
+			loguear( "bal $tck: " . $v["id"] . " ya existe" );
+		}
+		else {
+			$ch = curl_init();
+			curl_setopt( $ch, CURLOPT_URL, $v["url"] );
+			curl_setopt( $ch, CURLOPT_RETURNTRANSFER, true );
+			$server_output = curl_exec( $ch );
+			$content_type = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+			curl_close( $ch );
+			$chk = file_put_contents( $fx, $server_output );
+			if( ! $chk ){
+				loguear( "bal $tck: " . $k . " : id " . $v["id"] . " cierre " . $v["cfec"] . " rec " . $v["rfec"] . " nom " . $v["nom"] . " FAIL", "error" );
+			}
+			loguear( "bal $tck: " . $k . " : id " . $v["id"] . " cierre " . $v["cfec"] . " rec " . $v["rfec"] . " nom " . $v["nom"] . " SAVED" );
+		}
+	}
+	return;
 }
 
+//------------------------------------------------
+// file_cnv2loc
+//------------------------------------------------
+function file_cnv2loc( $x ){
+	//31 Dic 2016	10 Mar 2017 13:02	Balance Consolidado Anual (Completo) al 31 Dic 2016	4-463438-D
+	//20161231_20170310-1302_4-463438-D_Balance-Consolidado-Anual-Completo-al-31-Dic-2016.zip
+	$cierre = cnv_cierre( $x["cfec"] );
+	$recep = cnv_recep( $x["rfec"] );
+	$nom = cnv_nom_sanit( $x["nom"] );
+	return $cierre . "_" . $recep . "_" . $x["id"] . "_" . $nom . ".zip";
+}
+
+//------------------------------------------------
+// cnv nom sanit
+//------------------------------------------------
+function cnv_nom_sanit( $x ){
+	$x = str_replace( " ", "-", $x );
+	$x = str_replace( "(", "", $x );
+	$x = str_replace( ")", "", $x );
+	return $x;
+}
+
+//------------------------------------------------
+// cnv cierre
+//------------------------------------------------
+function cnv_cierre( $fecx ){
+	$fecx = str_replace( "Ene", "01", $fecx );
+	$fecx = str_replace( "Feb", "02", $fecx );
+	$fecx = str_replace( "Mar", "03", $fecx );
+	$fecx = str_replace( "Abr", "04", $fecx );
+	$fecx = str_replace( "May", "05", $fecx );
+	$fecx = str_replace( "Jun", "06", $fecx );
+	$fecx = str_replace( "Jul", "07", $fecx );
+	$fecx = str_replace( "Ago", "08", $fecx );
+	$fecx = str_replace( "Sep", "09", $fecx );
+	$fecx = str_replace( "Set", "10", $fecx );
+	$fecx = str_replace( "Nov", "11", $fecx );
+	$fecx = str_replace( "Dic", "12", $fecx );
+	$ax = explode( " ", $fecx );
+	return $ax[2] . $ax[1] . $ax[0];
+}
+
+//------------------------------------------------
+// cnv recep
+//------------------------------------------------
+function cnv_recep( $fecx ){
+	$fecx = str_replace( "Ene", "01", $fecx );
+	$fecx = str_replace( "Feb", "02", $fecx );
+	$fecx = str_replace( "Mar", "03", $fecx );
+	$fecx = str_replace( "Abr", "04", $fecx );
+	$fecx = str_replace( "May", "05", $fecx );
+	$fecx = str_replace( "Jun", "06", $fecx );
+	$fecx = str_replace( "Jul", "07", $fecx );
+	$fecx = str_replace( "Ago", "08", $fecx );
+	$fecx = str_replace( "Sep", "09", $fecx );
+	$fecx = str_replace( "Set", "10", $fecx );
+	$fecx = str_replace( "Nov", "11", $fecx );
+	$fecx = str_replace( "Dic", "12", $fecx );
+	$ax = explode( " ", $fecx );
+	return $ax[2] . $ax[1] . $ax[0] . "-" . substr( $ax[3], 0, 2 ) . substr( $ax[3], 3, 2 );
+}
 
 //------------------------------------------------
 // form

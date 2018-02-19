@@ -139,9 +139,7 @@ function updall( $bearer ){
 		if( $res == 0 )
 			$cant = $cant + 1;
 	}
-	$pdo = null; //para close connection 
-	$pds = null; //para close connection
-	loguear( "updall finalizado, $cant assets actualizados" );
+	loguear( "updall: finalizado, $cant assets actualizados" );
 	return;
 
 }
@@ -157,7 +155,7 @@ function assets( $mkt ){
 	try {
 		$pdo = new PDO( $dsn ); // sqlite
 	} catch( PDOException $e ) {
-		loguear( "updall: error en conn: " . $e->getMessage(), "error" );
+		loguear( "ass: error en conn: " . $e->getMessage(), "error" );
 		return;
 	}
 
@@ -167,7 +165,7 @@ function assets( $mkt ){
 	try {
 		$pds = $pdo->query( "select tck, mkt from asset a where a.mkt = 'bcba'" );
 	} catch( PDOException $e ) {
-		loguear( "updall: error en sel: " . $e->getMessage(), "error" );
+		loguear( "ass: error en sel: " . $e->getMessage(), "error" );
 		return;
 	}
 
@@ -194,7 +192,7 @@ function preciosdb( $tck, $de = "2018-01-01", $a = "hoy" ){
 	try {
 		$pdo = new PDO( $dsn ); // sqlite
 	} catch( PDOException $e ) {
-		loguear( "updall: error en conn: " . $e->getMessage(), "error" );
+		loguear( "pdb: error en conn: " . $e->getMessage(), "error" );
 		return;
 	}
 
@@ -205,7 +203,7 @@ function preciosdb( $tck, $de = "2018-01-01", $a = "hoy" ){
 	try {
 		$pds = $pdo->query( $sql );
 	} catch( PDOException $e ) {
-		loguear( "updall: error en sel: " . $e->getMessage(), "error" );
+		loguear( "pdb: error en sel: " . $e->getMessage(), "error" );
 		return;
 	}
 
@@ -258,15 +256,11 @@ function pers( $tck, $de, $a, $bearer ){
 	$cant = 0;
 	$preciosa = precios( $tck, $de, $a, $bearer );
 	if( !$preciosa ){
-		loguear( "pers $tck $de $a: problemas(1) en get de precios: " . key( $preciosa ) . "->" . $preciosa["message"], "error" );
+		loguear( "pers $tck $de $a: problemas en get de precios", "error" );
 		return -1;
-	}
-	else if( $preciosa[0]["fechaHora"] > 0 ){
-	 loguear( "pers $tck $de $a: precios obtenidos, recorriendo" );
 	}
 	else {
-		loguear( "pers $tck $de $a: problemas(2) en get de precios: " . key( $preciosa ) . "->" . $preciosa["message"], "error" );
-		return -1;
+	 loguear( "pers $tck $de $a: precios obtenidos, recorriendo" );
 	}
 
 	$database = 'mkt';
@@ -398,8 +392,15 @@ function precios( $tck, $de, $a, $bearer ){
 	curl_close( $ch );
 
 	$preciosa = json_decode( $server_output, true );
-	if( count( $preciosa ) == 1 && key( $preciosa ) == "message" ){
+	if( count( $preciosa ) == 1 && "xx" . key( $preciosa ) == "xxmessage" ){
 		loguear( "precios: error: " . $preciosa["message"], "error" );
+		return false;
+	}
+	else if( $preciosa[0]["fechaHora"] > 0 ){
+		$dummy = 1;
+	}
+	else {
+		//loguear( "precios: error: no se recibio array bien formado, sino " . var_dump( $precios ), "error" );
 		return false;
 	}
 

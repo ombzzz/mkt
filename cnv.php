@@ -23,11 +23,15 @@ function main(){
 
 	$tck = $_POST["tck"];
 	$bal = $_POST["bal"];
+	$balall = $_POST["balall"];
 	$sqlite = $_POST["sqlite"];
 
 	if( $bal == "bal" ){
-		bal( $tck );
-
+		$asx = assets( 'bcba', $tck );
+		bal( $asx[0] );
+	}
+	else if( $balall == "balall" ){
+		balall();
 	}
 	if( $sqlite == "sqlite" ){
 		sqlite();
@@ -41,32 +45,111 @@ curl_setopt($ch, CURLOPT_URL, "http://www.google.com");
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 $body = curl_exec($ch); 
 
+
+//------------------------------------------------
+// assets
+//------------------------------------------------
+function assets( $mkt, $tck ){
+	$database = 'mkt';
+	$dsn = "sqlite:$database.db";
+
+	try {
+		$pdo = new PDO( $dsn ); // sqlite
+	} catch( PDOException $e ) {
+		loguear( "ass: error en conn: " . $e->getMessage(), "error" );
+		return false;
+	}
+
+	$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+	if( $tck == 'todos' )
+		$criterio = "";
+	else if( strlen( $tck ) > 0 )
+		$criterio = "and tck = '" . $tck . "'";
+	else {
+		loguear( "ass: por favor indique criterio de seleccion", "error" );
+		return false;
+	}
+
+	//pds es un objeto pdostatement , que define interfaz iterable, por eso funciona el foreach 
+	try {
+		$pds = $pdo->query( "select * from asset a where a.mkt = '" . $mkt . "' $criterio" );
+	} catch( PDOException $e ) {
+		loguear( "ass: error en sel: " . $e->getMessage(), "error" );
+		return false;
+	}
+
+	$i = 0;
+	foreach( $pds as $row )
+		$res[$i++] = $row;
+
+	$pdo = null; //para close connection 
+	$pds = null; //para close connection
+	
+	return $res;
+}
+
+
+//------------------------------------------------
+// balall
+//------------------------------------------------
+function balall(){
+	loguear( "balall invocado" );
+	$cant = 0;
+	$canta = 0;
+
+	$ass = assets( 'bcba', 'todos' );
+
+	foreach( $ass as $asx ){
+		$res = bal( $asx );
+		if( $res == -1 ){
+			loguear( "balall: " . $asx["tck"] . " FATAL error" );
+		}
+		else if( $res >= 0 ){
+			loguear( "balall: " . $asx["tck"] . " $res archivos" );
+			$canta = $canta + $res;
+			$cant = $cant + 1;
+		}
+
+	}
+	loguear( "balall: finalizado, $cant assets actualizados, $canta archivos" );
+	return;
+}
+
+
 //------------------------------------------------
 // bal
 //------------------------------------------------
-function bal( $tck ){
+function bal( $ass ){
 
-	if( strlen( $tck) == 0 ){
-		loguear( "bal: por favor pase tck", "error" );
-		return;
+	$cant = 0;
+
+	if( !is_array( $ass ) || strlen( $ass["tck"] ) == 0 ){
+		loguear( "bal: por favor pase un asset bien formado", "error" );
+		return -1;
 	}
+	$tck = $ass["tck"];
 	loguear( "bal: invocado para $tck" );
 
-	$url = "http://www.cnv.gob.ar/InfoFinan/Zips.asp?Lang=0&CodiSoc=3&DescriSoc=Agrometal%20Sociedad%20Anonima%20Industrial%20%20%20%20%20%20&Letra=A&TipoDocum=1&TipoArchivo=1&TipoBalance=1";
+	$url = $ass["balurl"];
+	if( strlen( $url ) == 0 ){
+		loguear( "bal: $tck sin url balance, volviendo", "error" );
+		return -1;
+	}
 
 	$html = file_get_html( $url );
-/*
-div.contenido_derecha
-	table  [titulo]
-	table [archivos]
-		tr [cabecera]
-		tr [datos]
-			td [fecha cierre]
-				<a href="/Infofinan/BLOB_Zip.asp?cod_doc=463438&amp;error_page=Error.asp">31&nbsp;Dic&nbsp;2016</a>
-			td [fecha recepcion]
-			td [descripcion]
-			td [id]
-*/
+	/*
+	div.contenido_derecha
+		table  [titulo]
+		table [archivos]
+			tr [cabecera]
+			tr [datos]
+				td [fecha cierre]
+					<a href="/Infofinan/BLOB_Zip.asp?cod_doc=463438&amp;error_page=Error.asp">31&nbsp;Dic&nbsp;2016</a>
+				td [fecha recepcion]
+				td [descripcion]
+				td [id]
+	*/
 	// Find all <td> in <table> which class=hello 
 
 	$es = $html->find( 'div.contenido_derecha', 0 )->find( 'table', 1)->find( tr );
@@ -82,6 +165,8 @@ div.contenido_derecha
 			$files[$j]["rfec"] = trim( $x[1]->plaintext );
 			$files[$j]["nom"] = trim( $x[2]->plaintext );
 			$files[$j]["id"] = trim( $x[3]->plaintext );
+			$files[$j]["id"] = str_replace( "\t", "", $files[$j]["id"] );
+			$files[$j]["id"] = str_replace( " ", "", $files[$j]["id"] );
 			$j++;
 		}
 		$i++;
@@ -91,14 +176,22 @@ div.contenido_derecha
 	$html->clear();
 	unset($html);
 
-	if( ! file_exists( "_" . $tck ) ){
-		mkdir( "_" . $tck, 0777 );
+ 	$basedir = "/media/W/Comun/mkt/_$tck";
+
+	if( ! file_exists( $basedir ) ){
+		$oldumask = umask(0); //http://php.net/manual/en/function.mkdir.php#1207
+		$ret = mkdir( $basedir, 0777 );
+		umask($oldumask); 
+		if( !$ret ){
+			loguear( "bal: no se pudo crear dir $basedir, volviendo", "error" );
+			return -1;
+		}
 	}
 	foreach( $files as $k => $v ){
 		$fx = file_cnv2loc( $v );
-		$fx = "_" . $tck . "/" . $fx;
+		$fx = $basedir . "/" . $fx;
 		if( file_exists( $fx ) ){
-			loguear( "bal $tck: " . $v["id"] . " ya existe" );
+			loguear( "bal $tck: $fx ya existe" );
 		}
 		else {
 			$ch = curl_init();
@@ -111,10 +204,13 @@ div.contenido_derecha
 			if( ! $chk ){
 				loguear( "bal $tck: " . $k . " : id " . $v["id"] . " cierre " . $v["cfec"] . " rec " . $v["rfec"] . " nom " . $v["nom"] . " FAIL", "error" );
 			}
-			loguear( "bal $tck: " . $k . " : id " . $v["id"] . " cierre " . $v["cfec"] . " rec " . $v["rfec"] . " nom " . $v["nom"] . " SAVED" );
+			else {
+				loguear( "bal $tck: " . $k . " : id " . $v["id"] . " cierre " . $v["cfec"] . " rec " . $v["rfec"] . " nom " . $v["nom"] . " SAVED" );
+				$cant++;
+			}
 		}
 	}
-	return;
+	return $cant;
 }
 
 //------------------------------------------------
@@ -126,7 +222,9 @@ function file_cnv2loc( $x ){
 	$cierre = cnv_cierre( $x["cfec"] );
 	$recep = cnv_recep( $x["rfec"] );
 	$nom = cnv_nom_sanit( $x["nom"] );
-	return $cierre . "_" . $recep . "_" . $x["id"] . "_" . $nom . ".zip";
+	$id = str_replace( "(*)", "_ASK_", $x["id"] );
+
+	return $cierre . "_" . $recep . "_" . $id . "_" . $nom . ".zip";
 }
 
 //------------------------------------------------
@@ -136,6 +234,7 @@ function cnv_nom_sanit( $x ){
 	$x = str_replace( " ", "-", $x );
 	$x = str_replace( "(", "", $x );
 	$x = str_replace( ")", "", $x );
+	$x = str_replace( "/", "_", $x );
 	return $x;
 }
 
@@ -191,6 +290,7 @@ function form( $tck ){
 	<label>tck
 	<input name=tck value="$tck" type=text>
 	<input type=submit name=bal value=bal>
+	<input type=submit name=balall value=balall>
 	<hr>
 	<input type=submit name=sqlite value=sqlite>
 	</form>
@@ -292,41 +392,6 @@ function fecha_offset( $str, $dias ){
 //------------------------------------------------
 function fecha_hoy(){
 	return date('Y-m-d');
-}
-
-
-//------------------------------------------------
-// assets
-//------------------------------------------------
-function assets( $mkt ){
-	$database = 'mkt';
-	$dsn = "sqlite:$database.db";
-
-	try {
-		$pdo = new PDO( $dsn ); // sqlite
-	} catch( PDOException $e ) {
-		loguear( "updall: error en conn: " . $e->getMessage(), "error" );
-		return;
-	}
-
-	$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-	//pds es un objeto pdostatement , que define interfaz iterable, por eso funciona el foreach 
-	try {
-		$pds = $pdo->query( "select tck, mkt from asset a where a.mkt = 'bcba'" );
-	} catch( PDOException $e ) {
-		loguear( "updall: error en sel: " . $e->getMessage(), "error" );
-		return;
-	}
-
-	$i = 0;
-	foreach( $pds as $row )
-		$res[$i++] = $row[ "tck" ];
-
-	$pdo = null; //para close connection 
-	$pds = null; //para close connection
-	
-	return $res;
 }
 
 

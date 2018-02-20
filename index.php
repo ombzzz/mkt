@@ -396,6 +396,9 @@ function precios( $tck, $de, $a, $bearer ){
 		loguear( "precios: error: " . $preciosa["message"], "error" );
 		return false;
 	}
+	else if( count( $preciosa ) == 0 ){
+		loguear( "precios: sin precios historicos para $tck" );
+	}
 	else if( $preciosa[0]["fechaHora"] > 0 ){
 		$dummy = 1;
 	}

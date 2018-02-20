@@ -23,6 +23,8 @@ function main(){
 
 	$tck = $_POST["tck"];
 	$bal = $_POST["bal"];
+	$hr = $_POST["hr"];
+	$hrall = $_POST["hrall"];
 	$balall = $_POST["balall"];
 	$sqlite = $_POST["sqlite"];
 
@@ -30,8 +32,15 @@ function main(){
 		$asx = assets( 'bcba', $tck );
 		bal( $asx[0] );
 	}
+	else if( $hr == "hr" ){
+		$asx = assets( 'bcba', $tck );
+		hr( $asx[0] );
+	}
 	else if( $balall == "balall" ){
 		balall();
+	}
+	else if( $hrall == "hrall" ){
+		hrall();
 	}
 	if( $sqlite == "sqlite" ){
 		sqlite();
@@ -116,6 +125,32 @@ function balall(){
 	return;
 }
 
+
+//------------------------------------------------
+// hrall
+//------------------------------------------------
+function hrall(){
+	loguear( "hrall invocado" );
+	$cant = 0;
+	$canta = 0;
+
+	$ass = assets( 'bcba', 'todos' );
+
+	foreach( $ass as $asx ){
+		$res = hr( $asx );
+		if( $res == -1 ){
+			loguear( "hrall: " . $asx["tck"] . " FATAL error" );
+		}
+		else if( $res >= 0 ){
+			loguear( "hrall: " . $asx["tck"] . " $res archivos" );
+			$canta = $canta + $res;
+			$cant = $cant + 1;
+		}
+
+	}
+	loguear( "hrall: finalizado, $cant assets actualizados, $canta archivos" );
+	return;
+}
 
 //------------------------------------------------
 // bal
@@ -214,6 +249,107 @@ function bal( $ass ){
 }
 
 //------------------------------------------------
+// hr
+//------------------------------------------------
+function hr( $ass ){
+
+	$cant = 0;
+
+	if( !is_array( $ass ) || strlen( $ass["tck"] ) == 0 ){
+		loguear( "hr: por favor pase un asset bien formado", "error" );
+		return -1;
+	}
+	$tck = $ass["tck"];
+	loguear( "hr: invocado para $tck" );
+
+	$url = $ass["hrurl"];
+	if( strlen( $url ) == 0 ){
+		loguear( "hr: $tck sin url hr, volviendo", "error" );
+		return -1;
+	}
+
+	loguear( "hr $tck: get $url" );
+	$html = file_get_html( $url );
+	/*
+	div.contenido_derecha
+		table  [titulo]
+		table [archivos]
+			tr [cabecera]
+			tr [datos]
+				td [fecha cierre]
+					<a href="/Infofinan/BLOB_Zip.asp?cod_doc=463438&amp;error_page=Error.asp">31&nbsp;Dic&nbsp;2016</a>
+				td [fecha recepcion]
+				td [descripcion]
+				td [id]
+	*/
+	// Find all <td> in <table> which class=hello 
+
+	if( ! is_object( $html ) ){
+		loguear( "hr $tck: get de url volvio no objeto", "error" );
+		return -1;
+	}
+	$es = $html->find( 'div.contenido_derecha', 0 )->find( 'table', 1)->find( tr );
+	$i = 0;
+	$j = 0;
+	foreach( $es as $k=> $v ){
+		if( $i >= 2 ){
+			$x = $v->find( 'td' );
+			//echo $x[0]->plaintext;
+			$files[$j]["url"] = "http://www.cnv.gob.ar" . $x[0]->find( "a", 0)->href;
+			$files[$j]["cfec"] = trim( $x[0]->plaintext );
+			$files[$j]["cfec"] = str_replace( "&nbsp;", " ", $files[$j]["cfec"] );
+			$files[$j]["rfec"] = trim( $x[1]->plaintext );
+			$files[$j]["nom"] = trim( $x[2]->plaintext );
+			$files[$j]["id"] = trim( $x[3]->plaintext );
+			$files[$j]["id"] = str_replace( "\t", "", $files[$j]["id"] );
+			$files[$j]["id"] = str_replace( " ", "", $files[$j]["id"] );
+			$j++;
+		}
+		$i++;
+	}
+
+	// clean up memory
+	$html->clear();
+	unset($html);
+
+ 	$basedir = "/media/W/Comun/mkt/_$tck/hr";
+
+	if( ! file_exists( $basedir ) ){
+		$oldumask = umask(0); //http://php.net/manual/en/function.mkdir.php#1207
+		$ret = mkdir( $basedir, 0777 );
+		umask($oldumask); 
+		if( !$ret ){
+			loguear( "hr: no se pudo crear dir $basedir, volviendo", "error" );
+			return -1;
+		}
+	}
+	foreach( $files as $k => $v ){
+		$fx = file_cnv2loc( $v );
+		$fx = $basedir . "/" . $fx;
+		if( file_exists( $fx ) ){
+			loguear( "hr $tck: $fx ya existe" );
+		}
+		else {
+			$ch = curl_init();
+			curl_setopt( $ch, CURLOPT_URL, $v["url"] );
+			curl_setopt( $ch, CURLOPT_RETURNTRANSFER, true );
+			$server_output = curl_exec( $ch );
+			$content_type = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+			curl_close( $ch );
+			$chk = file_put_contents( $fx, $server_output );
+			if( ! $chk ){
+				loguear( "hr $tck: " . $k . " : id " . $v["id"] . " cierre " . $v["cfec"] . " rec " . $v["rfec"] . " nom " . $v["nom"] . " FAIL", "error" );
+			}
+			else {
+				loguear( "hr $tck: " . $k . " : id " . $v["id"] . " cierre " . $v["cfec"] . " rec " . $v["rfec"] . " nom " . $v["nom"] . " SAVED" );
+				$cant++;
+			}
+		}
+	}
+	return $cant;
+}
+
+//------------------------------------------------
 // file_cnv2loc
 //------------------------------------------------
 function file_cnv2loc( $x ){
@@ -251,7 +387,8 @@ function cnv_cierre( $fecx ){
 	$fecx = str_replace( "Jul", "07", $fecx );
 	$fecx = str_replace( "Ago", "08", $fecx );
 	$fecx = str_replace( "Sep", "09", $fecx );
-	$fecx = str_replace( "Set", "10", $fecx );
+	$fecx = str_replace( "Set", "09", $fecx );
+	$fecx = str_replace( "Oct", "10", $fecx );
 	$fecx = str_replace( "Nov", "11", $fecx );
 	$fecx = str_replace( "Dic", "12", $fecx );
 	$ax = explode( " ", $fecx );
@@ -271,14 +408,15 @@ function cnv_recep( $fecx ){
 	$fecx = str_replace( "Jul", "07", $fecx );
 	$fecx = str_replace( "Ago", "08", $fecx );
 	$fecx = str_replace( "Sep", "09", $fecx );
-	$fecx = str_replace( "Set", "10", $fecx );
+	$fecx = str_replace( "Set", "09", $fecx );
+	$fecx = str_replace( "Oct", "10", $fecx );
 	$fecx = str_replace( "Nov", "11", $fecx );
 	$fecx = str_replace( "Dic", "12", $fecx );
 	$ax = explode( " ", $fecx );
 	return $ax[2] . $ax[1] . $ax[0] . "-" . substr( $ax[3], 0, 2 ) . substr( $ax[3], 3, 2 );
 }
 
-//------------------------------------------------
+//---------------------------r--------------------
 // form
 //------------------------------------------------
 function form( $tck ){
@@ -290,7 +428,9 @@ function form( $tck ){
 	<label>tck
 	<input name=tck value="$tck" type=text>
 	<input type=submit name=bal value=bal>
+	<input type=submit name=hr value=hr>
 	<input type=submit name=balall value=balall>
+	<input type=submit name=hrall value=hrall>
 	<hr>
 	<input type=submit name=sqlite value=sqlite>
 	</form>

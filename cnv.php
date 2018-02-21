@@ -82,7 +82,7 @@ function assets( $mkt, $tck ){
 
 	//pds es un objeto pdostatement , que define interfaz iterable, por eso funciona el foreach 
 	try {
-		$pds = $pdo->query( "select * from asset a where a.mkt = '" . $mkt . "' $criterio" );
+		$pds = $pdo->query( "select * from asset a where a.mkt = '" . $mkt . "' $criterio order by a.tck" );
 	} catch( PDOException $e ) {
 		loguear( "ass: error en sel: " . $e->getMessage(), "error" );
 		return false;
@@ -357,7 +357,7 @@ function file_cnv2loc( $x ){
 	//20161231_20170310-1302_4-463438-D_Balance-Consolidado-Anual-Completo-al-31-Dic-2016.zip
 	$cierre = cnv_cierre( $x["cfec"] );
 	$recep = cnv_recep( $x["rfec"] );
-	$nom = cnv_nom_sanit( $x["nom"] );
+	$nom = substr( cnv_nom_sanit( $x["nom"] ), 0, 150 );
 	$id = str_replace( "(*)", "_ASK_", $x["id"] );
 
 	return $cierre . "_" . $recep . "_" . $id . "_" . $nom . ".zip";
@@ -509,7 +509,7 @@ function sqlite(){
 	}
 
 	//pds es un objeto pdostatement , que define interfaz iterable, por eso funciona el foreach 
-	$pds = $pdo->query( "select tck from asset" );
+	$pds = $pdo->query( "select tck from asset order by tck" );
 	foreach( $pds as $row ){
 		echo "<div>" . $row[ "tck" ] . "</div>";
 	}

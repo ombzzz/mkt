@@ -163,7 +163,7 @@ function assets( $mkt ){
 
 	//pds es un objeto pdostatement , que define interfaz iterable, por eso funciona el foreach 
 	try {
-		$pds = $pdo->query( "select tck, mkt from asset a where a.mkt = 'bcba'" );
+		$pds = $pdo->query( "select tck, mkt from asset a where a.mkt = 'bcba' order by a.tck" );
 	} catch( PDOException $e ) {
 		loguear( "ass: error en sel: " . $e->getMessage(), "error" );
 		return;

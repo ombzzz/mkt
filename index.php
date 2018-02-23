@@ -135,7 +135,7 @@ function updall( $bearer ){
 	$asx = assets( 'bcba' );
 
 	foreach( $asx as $as ){
-		$res = upd( $as, $bearer );
+		$res = upd( $as["tck"], $bearer );
 		if( $res == 0 )
 			$cant = $cant + 1;
 	}
@@ -148,7 +148,7 @@ function updall( $bearer ){
 //------------------------------------------------
 // assets
 //------------------------------------------------
-function assets( $mkt ){
+function assets( $mkt, $tck = 'todos' ){
 	$database = 'mkt';
 	$dsn = "sqlite:$database.db";
 
@@ -156,22 +156,31 @@ function assets( $mkt ){
 		$pdo = new PDO( $dsn ); // sqlite
 	} catch( PDOException $e ) {
 		loguear( "ass: error en conn: " . $e->getMessage(), "error" );
-		return;
+		return false;
 	}
 
 	$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
+	if( $tck == 'todos' )
+		$criterio = "";
+	else if( strlen( $tck ) > 0 )
+		$criterio = "and tck = '" . $tck . "'";
+	else {
+		loguear( "ass: por favor indique criterio de seleccion", "error" );
+		return false;
+	}
+
 	//pds es un objeto pdostatement , que define interfaz iterable, por eso funciona el foreach 
 	try {
-		$pds = $pdo->query( "select tck, mkt from asset a where a.mkt = 'bcba' order by a.tck" );
+		$pds = $pdo->query( "select * from asset a where a.mkt = '" . $mkt . "' $criterio order by a.tck" );
 	} catch( PDOException $e ) {
 		loguear( "ass: error en sel: " . $e->getMessage(), "error" );
-		return;
+		return false;
 	}
 
 	$i = 0;
 	foreach( $pds as $row )
-		$res[$i++] = $row[ "tck" ];
+		$res[$i++] = $row;
 
 	$pdo = null; //para close connection 
 	$pds = null; //para close connection
@@ -692,6 +701,9 @@ function json( $tck, $de, $a ){
 
 function graf( $tck, $de, $a ){
 
+	$asx = assets( 'bcba', $tck );
+	$den = $asx[0]["den"];
+
 	echo <<<FINN
 <div id="container" style="height: 600px; min-width: 310px"></div>
 
@@ -701,11 +713,11 @@ $.getJSON( 'index.php?json=$tck&de=$de&a=$a', function( data ){
 	Highcharts.stockChart('container', {
 		rangeSelector: {selected: 1 },
 
-		title: {text: 'molinos semino'},
+		title: {text: '$den'},
 
 		series: [
 		{
-			name: 'semi',
+			name: '$tck',
 			data: data,
 			tooltip: {valueDecimals: 2 }
 		}

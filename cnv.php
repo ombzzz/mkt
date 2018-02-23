@@ -58,7 +58,7 @@ $body = curl_exec($ch);
 //------------------------------------------------
 // assets
 //------------------------------------------------
-function assets( $mkt, $tck ){
+function assets( $mkt, $tck = 'todos'){
 	$database = 'mkt';
 	$dsn = "sqlite:$database.db";
 

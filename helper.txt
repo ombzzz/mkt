@@ -103,7 +103,10 @@ create table asset (
 	den,
 	sect,
 	mkt,
-	mervl, primary key( tck )
+	mervl, 
+	balurl, 
+	hrurl,
+	primary key( tck )
 );
 
 
@@ -159,4 +162,38 @@ POST /token HTTP/1.1
 Host: api.invertironline.com
 Content-Type: application/x-www-form-urlencoded
 refresh_token=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb&grant_type=refresh_token
+
+***
+
+siguientes no lo tiene historico iol, lo obtenemos de rava y lo importamos en sqlite 
+
+for x in bma brio capx ceco2 ctio loma rich std tef petr; do
+wget -c -O $x.csv http://www.ravaonline.com/v2/empresas/precioshistoricos.php?e=$x&csv=1
+done
+
+for x in bma brio capx ceco2 ctio loma rich std tef petr; do
+awk -vt=$x ' NR >= 2 { print t "," $0}' $x.csv >> $x.0.csv
+done
+
+create temporary table tmp_rava( tck, fecha, apertura, maximo, minimo, cierre, volumen, openint );
+
+.separator ","
+.import bma.0.csv tmp_rava
+.import brio.0.csv tmp_rava
+.import capx.0.csv tmp_rava
+.import ceco2.0.csv tmp_rava
+.import ctio.0.csv tmp_rava
+.import loma.0.csv tmp_rava
+.import rich.0.csv tmp_rava
+.import std.0.csv tmp_rava
+.import tef.0.csv tmp_rava
+.import petr.0.csv tmp_rava
+
+
+delete from as_pr where tck in ( 
+'bma', 'brio', 'capx', 'ceco2', 'ctio', 'loma', 'rich', 'std', 'tef', 'petr'
+)
+
+insert into as_pr( tck, fec, open, max, min, close, vol )
+select r.tck, r.fecha, r.apertura, r.maximo, r.minimo, r.cierre, r.volumen from tmp_rava r;
 

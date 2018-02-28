@@ -10,6 +10,11 @@ if( strlen( $_GET["json"] ) > 0 ){
 <script src="hs/code/highstock.js"></script>
 <script src="hs/code/modules/exporting.js"></script>
 <style>
+
+input {
+	margin: 3px;
+}
+
 .log {
 	white-space: pre-wrap;
 }
@@ -49,6 +54,12 @@ function main(){
 	$updall = $_POST["updall"];
 
 	$json = $_GET["json"];
+
+	if( strlen($de) == 0 )
+		$de = "2018-01-01";
+
+	if( strlen($a) == 0 )
+		$a = fecha_hoy();
 
 	if( $login == "login" ){
 		$json = login( $usr, $pas );
@@ -265,7 +276,8 @@ function pers( $tck, $de, $a, $bearer ){
 	$cant = 0;
 	$preciosa = precios( $tck, $de, $a, $bearer );
 	if( !$preciosa ){
-		loguear( "pers $tck $de $a: problemas en get de precios", "error" );
+
+	loguear( "pers $tck $de $a: problemas en get de precios", "error" );
 		return -1;
 	}
 	else {
@@ -552,11 +564,12 @@ function form( $usr, $pas, $panel, $cotiz, $tck, $de, $a, $bearer ){
 	<input type=submit name=panel value=panel>
 	<br>
 	<label>tck
-	<input name=tck value="$tck" type=text>
-	<label>de ( ej 2018-02-25 )  habria desde 3/12/2001
+	<textarea rows=4 cols=100 name=tck>$tck</textarea>
+	<br>
+	<label>de ( ej 2018-02-25, habria desde 3/12/2001 )
 	<input name=de value="$de" type=text>
-	<label>a
-	<input name=a value="$a" type=text>
+	<label>a <input name=a value="$a" type=text>
+	<br>
 	<input type=submit name=cotiz value=cotiz>
 	<input type=submit name=precios value=precios>
 	<input type=submit name=preciosdb value=preciosdb>
@@ -565,10 +578,9 @@ function form( $usr, $pas, $panel, $cotiz, $tck, $de, $a, $bearer ){
 	<input type=submit name=pers value=pers>
 	<input type=submit name=upd value=upd>
 	<input type=submit name=updall value=updall>
-	<br>
-	<textarea cols=100 name=bearer>$bearer</textarea>
 	<hr>
 	<input type=submit name=sqlite value=sqlite>
+	<textarea rows=4 cols=100 name=bearer>$bearer</textarea>
 	</form>
 
 FINN;
@@ -699,25 +711,38 @@ function json( $tck, $de, $a ){
 }
 
 
+//------------------------------------------------
+// graf
+//------------------------------------------------
 function graf( $tck, $de, $a ){
 
-	$asx = assets( 'bcba', $tck );
-	$den = $asx[0]["den"];
+	$tck = str_replace( "\r\n", " ", $tck );
+	$tck = str_replace( "\n", " ", $tck );
 
-	echo <<<FINN
-<div id="container" style="height: 600px; min-width: 310px"></div>
+	if( strlen(trim($tck)) == 0 ){
+		return "verifique parametros";
+	}
+	$a = explode( " ", trim( $tck ) );
+
+	foreach ( $a as $key => $value) {
+		$asx = assets( 'bcba', $value );
+		$den = $asx[0]["den"];
+		$tx = $asx[0]["tck"];
+
+		echo <<<FINN
+<div id="container_$tx" style="height: 600px; min-width: 310px"></div>
 
 <script>
 
-$.getJSON( 'index.php?json=$tck&de=$de&a=$a', function( data ){
-	Highcharts.stockChart('container', {
+$.getJSON( 'index.php?json=$tx&de=$de&a=$a', function( data ){
+	Highcharts.stockChart('container_$tx', {
 		rangeSelector: {selected: 1 },
 
 		title: {text: '$den'},
 
 		series: [
 		{
-			name: '$tck',
+			name: '$tx',
 			data: data,
 			tooltip: {valueDecimals: 2 }
 		}
@@ -727,6 +752,9 @@ $.getJSON( 'index.php?json=$tck&de=$de&a=$a', function( data ){
 });
 </script>
 FINN;
+	}
+
+	return "ok";
 }
 
 ?>

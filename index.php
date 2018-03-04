@@ -275,13 +275,12 @@ function pers( $tck, $de, $a, $bearer ){
 
 	$cant = 0;
 	$preciosa = precios( $tck, $de, $a, $bearer );
-	if( !$preciosa ){
-
-	loguear( "pers $tck $de $a: problemas en get de precios", "error" );
+	if( !is_array( $preciosa ) && $preciosa == false ){
+		loguear( "pers $tck $de $a: problemas en get de precios", "error" );
 		return -1;
 	}
 	else {
-	 loguear( "pers $tck $de $a: precios obtenidos, recorriendo" );
+	 loguear( "pers $tck $de $a: " . count( $preciosa ) . " precios obtenidos, recorriendo" );
 	}
 
 	$database = 'mkt';
@@ -334,15 +333,18 @@ FINN;
 	}
 	loguear( "pers $tck $de $a: fuera de cursor" );
 
-	try {
-		$pdo->commit();
-	} catch( PDOException $e ) {
-		loguear( "pers $tck $de $a: error en c-ommit: " . $e->getMessage(), "error" );
-		return -1;
+	if($cant){
+		try {
+			$pdo->commit();
+		} catch( PDOException $e ) {
+			loguear( "pers $tck $de $a: error en c-ommit: " . $e->getMessage(), "error" );
+			return -1;
+		}
+
+		loguear( "pers $tck: --commit--" );
+
 	}
-
-	loguear( "pers $tck: --commit--" );
-
+	
 	$pdo = null; //para close connection 
 	$pds = null; //para close connection
 
@@ -398,6 +400,7 @@ function last( $tck ){
 */
 //------------------------------------------------
 function precios( $tck, $de, $a, $bearer ){
+	$hayprecios = 0;
 	$tck = strtoupper($tck);
 
 	//GET /api/{mercado}/Titulos/{simbolo}/Cotizacion/seriehistorica/{fechaDesde}/{fechaHasta}/{ajustada}
@@ -421,7 +424,7 @@ function precios( $tck, $de, $a, $bearer ){
 		loguear( "precios: sin precios historicos para $tck" );
 	}
 	else if( $preciosa[0]["fechaHora"] > 0 ){
-		$dummy = 1;
+		$hayprecios = 1;
 	}
 	else {
 		//loguear( "precios: error: no se recibio array bien formado, sino " . var_dump( $precios ), "error" );
@@ -429,11 +432,23 @@ function precios( $tck, $de, $a, $bearer ){
 	}
 
 	if( $a == fecha_hoy() ){
-		//serie historica no devuelve el precio de hoy, lo buscamos por cotizacion
+		//serie historica no devuelve el precio de hoy, lo buscamo434s por cotizacion
 		$cotiz = cotiz( $bearer, $tck );
-		array_unshift( $preciosa, $cotiz );
+		$ulth = substr( $preciosa[ count($preciosa)-1 ]["fechaHora"], 0, 10 );
+		$ultc = substr( $cotiz["fechaHora"], 0, 10 );
+		//en algun momento la historica lo trae, chequeamos si lo trajo a hoy, para no meterlo dos veces en el a-rray
+		//ademas chequeamos que la cotiz recibida no sea anterior al hasta solicitado
+		if( $ultc != $ulth && $ultc >= $a ){
+			array_unshift( $preciosa, $cotiz );
+			$hayprecios = 1;
+		}
 	}
-  return $preciosa;
+	if( $hayprecios == 1 ){
+  	return $preciosa;
+	}
+ 	else{
+ 		return Array();
+ 	}
 }
 
 //------------------------------------------------
@@ -733,7 +748,7 @@ function graf( $tck, $de, $a ){
 <div id="container_$tx" style="height: 600px; min-width: 310px"></div>
 
 <script>
-
+/*
 $.getJSON( 'index.php?json=$tx&de=$de&a=$a', function( data ){
 	Highcharts.stockChart('container_$tx', {
 		rangeSelector: {selected: 1 },
@@ -750,6 +765,32 @@ $.getJSON( 'index.php?json=$tx&de=$de&a=$a', function( data ){
 	});
 
 });
+*/
+
+//var data1 = [];
+
+$.getJSON( 'index.php?json=$tx&de=$de&a=$a', function( data ){
+	var data1 = data;
+});
+
+console.log( data1 );
+
+
+	Highcharts.stockChart('container_$tx', {
+		rangeSelector: {selected: 1 },
+
+		title: {text: '$den'},
+
+		series: [
+		{
+			name: '$tx',
+			data: data1,
+			tooltip: {valueDecimals: 2 }
+		}
+		]
+	});
+
+
 </script>
 FINN;
 	}

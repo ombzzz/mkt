@@ -183,9 +183,11 @@ function assets( $mkt, $tck = 'todos' ){
 
 	//pds es un objeto pdostatement , que define interfaz iterable, por eso funciona el foreach 
 	try {
-		$pds = $pdo->query( "select * from asset a where a.mkt = '" . $mkt . "' $criterio order by a.tck" );
+		$sql = "select * from asset a where ( a.mkt = '" . $mkt . "' or 'all' = '"  . $mkt . "' ) "
+		 . " $criterio order by a.tck";
+		$pds = $pdo->query( $sql );
 	} catch( PDOException $e ) {
-		loguear( "ass: error en sel: " . $e->getMessage(), "error" );
+		loguear( "ass: error en sel: " . $e->getMessage() . " sql fue " . $sql, "error" );
 		return false;
 	}
 
@@ -737,19 +739,21 @@ function graf( $tck, $de, $a ){
 	if( strlen(trim($tck)) == 0 ){
 		return "verifique parametros";
 	}
-	$a = explode( " ", trim( $tck ) );
+	$as = explode( " ", trim( $tck ) );
 
-	foreach ( $a as $key => $value) {
-		$asx = assets( 'bcba', $value );
+	foreach ( $as as $key => $value) {
+		$asx = assets( 'all', $value );
 		$den = $asx[0]["den"];
 		$tx = $asx[0]["tck"];
+
+		$url = "index.php?json=$tx&de=$de&a=$a";
 
 		echo <<<FINN
 <div id="container_$tx" style="height: 600px; min-width: 310px"></div>
 
 <script>
-/*
-$.getJSON( 'index.php?json=$tx&de=$de&a=$a', function( data ){
+$.getJSON( '$url', function( data ){
+	console.log( "$url");
 	Highcharts.stockChart('container_$tx', {
 		rangeSelector: {selected: 1 },
 
@@ -765,36 +769,10 @@ $.getJSON( 'index.php?json=$tx&de=$de&a=$a', function( data ){
 	});
 
 });
-*/
-
-//var data1 = [];
-
-$.getJSON( 'index.php?json=$tx&de=$de&a=$a', function( data ){
-	var data1 = data;
-});
-
-console.log( data1 );
-
-
-	Highcharts.stockChart('container_$tx', {
-		rangeSelector: {selected: 1 },
-
-		title: {text: '$den'},
-
-		series: [
-		{
-			name: '$tx',
-			data: data1,
-			tooltip: {valueDecimals: 2 }
-		}
-		]
-	});
-
-
 </script>
 FINN;
-	}
 
+	}
 	return "ok";
 }
 

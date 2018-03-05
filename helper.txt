@@ -197,3 +197,69 @@ delete from as_pr where tck in (
 insert into as_pr( tck, fec, open, max, min, close, vol )
 select r.tck, r.fecha, r.apertura, r.maximo, r.minimo, r.cierre, r.volumen from tmp_rava r;
 
+#dezipear balances
+
+for i in *.zip; do
+unzip -q -o -d `basename $i .zip` $i
+if [ $? -eq 0 ]; then
+  echo OK $i
+  rm $i
+else
+  echo FAIL $i
+fi
+done
+
+
+for i in *.doc; do
+ripole -i $i -d ole --save-unknown-streams 
+  for j in ole/*; do
+    tipo=`file $j`
+    if [ $tipo =~ PDF ]; then
+      echo PDF $j
+    else 
+    	rm $j
+    fi
+  done 
+done
+
+
+#aluminium lme
+
+https://www.quandl.com/data/LME/PR_AL-Aluminum-Prices
+
+create temporary table tmp_quandl( date, cb, css, b3m, s3m, b15m, s15m, bd1, sd1, bd2, sd2, bd3, sd3 );
+
+tail -n+2 LME-PR_AL.csv > LME-PR_AL_.csv
+
+.separator ","
+.import LME-PR_AL_.csv tmp_quandl
+
+insert into asset( tck, den, sect, mkt ) values ( 'alu', 'aluminium lme', 'comm', 'lme' );
+
+insert into as_pr( tck, fec, open, max, min, close, vol )
+select 'alu', q.date, q.cb, q.cb, q.cb, q.cb, 0 from tmp_quandl q;
+
+#merval
+
+for x in merval; do
+wget -c -O $x.csv http://www.ravaonline.com/v2/empresas/precioshistoricos.php?e=$x&csv=1
+done
+
+for x in merval; do
+awk -vt=$x ' NR >= 2 { print t "," $0}' $x.csv >> $x.0.csv
+done
+
+insert into asset( tck, den, sect, mkt ) values ( 'merval', 'merval', 'idx', 'bcba' );
+
+create temporary table tmp_rava( tck, fecha, apertura, maximo, minimo, cierre, volumen, openint );
+
+.separator ","
+.import merval.0.csv tmp_rava
+
+
+delete from as_pr where tck in ( 
+'merval'
+)
+
+insert into as_pr( tck, fec, open, max, min, close, vol )
+select r.tck, r.fecha, r.apertura, r.maximo, r.minimo, r.cierre, r.volumen from tmp_rava r;

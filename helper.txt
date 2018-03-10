@@ -121,6 +121,7 @@ create table as_pr(
 	montop,
 	per,
 	yld,
+	obs
 	primary key( tck, fec )
 );
 
@@ -167,11 +168,11 @@ refresh_token=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb&grant_type=refr
 
 siguientes no lo tiene historico iol, lo obtenemos de rava y lo importamos en sqlite 
 
-for x in bma brio capx ceco2 ctio loma rich std tef petr; do
+for x in bma brio capx ceco2 ctio loma rich std tef petr pgr; do
 wget -c -O $x.csv http://www.ravaonline.com/v2/empresas/precioshistoricos.php?e=$x&csv=1
 done
 
-for x in bma brio capx ceco2 ctio loma rich std tef petr; do
+for x in bma brio capx ceco2 ctio loma rich std tef petr pgr; do
 awk -vt=$x ' NR >= 2 { print t "," $0}' $x.csv >> $x.0.csv
 done
 
@@ -188,10 +189,11 @@ create temporary table tmp_rava( tck, fecha, apertura, maximo, minimo, cierre, v
 .import std.0.csv tmp_rava
 .import tef.0.csv tmp_rava
 .import petr.0.csv tmp_rava
+.import pgr.0.csv tmp_rava
 
 
 delete from as_pr where tck in ( 
-'bma', 'brio', 'capx', 'ceco2', 'ctio', 'loma', 'rich', 'std', 'tef', 'petr'
+'bma', 'brio', 'capx', 'ceco2', 'ctio', 'loma', 'rich', 'std', 'tef', 'petr', 'pgr'
 )
 
 insert into as_pr( tck, fec, open, max, min, close, vol )

@@ -15,6 +15,14 @@ input {
 	margin: 3px;
 }
 
+.precio{
+	white-space: pre-wrap;
+	font-family: "courier new";
+}
+
+.precio span{
+	margin-left: 5px;
+}
 .log {
 	white-space: pre-wrap;
 }
@@ -52,6 +60,7 @@ function main(){
 	$pers = $_POST["pers"];
 	$upd = $_POST["upd"];
 	$updall = $_POST["updall"];
+	$updvol = $_POST["updvol"];
 
 	$json = $_GET["json"];
 
@@ -85,15 +94,17 @@ function main(){
 		$preciosa = precios( $tck, $de, $a, $bearer );
 		if( $preciosa ){
 			foreach( $preciosa as $k=>$v ){
-				echo "<div>" . $v["fechaHora"] . ": " . $v["ultimoPrecio"] . "</div>";
+				echo "<div>" . $v["fechaHora"] . ": " . $v["ultimoPrecio"] . " " . $v["obs"] . "</div>";
 			}
 		}
 	}
 	if( $preciosdb == "preciosdb" ){
 		$pra = preciosdb( $tck, $de, $a );
 		foreach( $pra as $key => $pr ){
-			echo "<div class=precio><span>" . $pr["fec"] . ": " . "</span><span>" 
-			 . number_format( (float) $pr["close"], 2, '.', '' ) . "</span></div>";
+			echo "<div class=precio><span>" . $pr["fec"] . "</span>"
+			. "<span>" .  str_pad( number_format( (float) $pr["close"], 2, '.', '' ), 10, " ", STR_PAD_LEFT ) . "</span>"
+			. "<span> " . str_pad( number_format( (float) $pr["montop"], 2, '.', '' ), 15, " ", STR_PAD_LEFT ). "</span>"
+			. "</div>";
 		}
 	}
 	if( $graf == "graf" ){
@@ -108,13 +119,16 @@ function main(){
 	}
 	if( $pers == "pers" ){
 		pers( $tck, $de, $a, $bearer );
-
 	}
 	if( $upd == "upd" ){
 		upd( $tck, $bearer );
 	}
 	if( $updall == "updall" ){
 		updall( $bearer );
+	}
+	if( $updvol == "updvol" ){
+		$cant = updvol(  $tck, $de, $a, $bearer );
+		echo "<div>$cant precios actualizados</div>";
 	}
 
 	form( $usr, $pas, $panel, $cotiz, $tck, $de, $a, $bearer );
@@ -204,7 +218,7 @@ function assets( $mkt, $tck = 'todos' ){
 //------------------------------------------------
 // preciosdb
 //------------------------------------------------
-function preciosdb( $tck, $de = "2018-01-01", $a = "hoy" ){
+function preciosdb( $tck, $de = "2018-01-01", $a = "hoy", $desc = 0 ){
 	if( $a == "hoy" )
 		$a = fecha_hoy();
 
@@ -220,12 +234,17 @@ function preciosdb( $tck, $de = "2018-01-01", $a = "hoy" ){
 
 	$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
+	if( $desc )
+		$descx = "order by fec desc";
+	else
+		$descx = "order by fec";
+
 	//pds es un objeto pdostatement , que define interfaz iterable, por eso funciona el foreach 
-	$sql = "select * from as_pr ap where ap.tck = '" . $tck . "' and ap.fec between '" . $de . "' and '" . $a . "' order by fec";
+	$sql = "select * from as_pr ap where ap.tck = '" . $tck . "' and ap.fec between '" . $de . "' and '" . $a . "' $descx";
 	try {
 		$pds = $pdo->query( $sql );
 	} catch( PDOException $e ) {
-		loguear( "pdb: error en sel: " . $e->getMessage(), "error" );
+		loguear( "pdb: error en sel: " . $e->getMessage() . " sql es $sql", "error" );
 		return;
 	}
 
@@ -307,9 +326,13 @@ function pers( $tck, $de, $a, $bearer ){
 		$max = $value["maximo"];
 		$vol = $value["volumenNominal"];
 		$montop = $value["montoOperado"];
+		if( $value["sinvol"] )
+			$obs = "sinvol";
+		else 
+			$obs = "";
 
 		$sql = <<<FINN
-		insert into as_pr( tck, fec, open, close, min, max, vol, montop ) values (
+		insert into as_pr( tck, fec, open, close, min, max, vol, montop, obs ) values (
 			'$tck',
 			'$fec',
 			$open,
@@ -317,7 +340,8 @@ function pers( $tck, $de, $a, $bearer ){
 			$min,
 			$max,
 			$vol,
-			$montop
+			$montop,
+			$obs
 		)
 FINN;
 
@@ -405,9 +429,12 @@ function precios( $tck, $de, $a, $bearer ){
 	$hayprecios = 0;
 	$tck = strtoupper($tck);
 
+	//el rest no devuelve el hasta inclusive, por eso sumamos uno
+	$ax = fecha_offset( $a, 1 );
+
 	//GET /api/{mercado}/Titulos/{simbolo}/Cotizacion/seriehistorica/{fechaDesde}/{fechaHasta}/{ajustada}
 	//mercado: bCBA, nYSE, nASDAQ, aMEX, bCS, rOFX
-	$url = "https://api.invertironline.com/api/bCBA/Titulos/$tck/Cotizacion/seriehistorica/$de/$a/ajustada";
+	$url = "https://api.invertironline.com/api/bCBA/Titulos/$tck/Cotizacion/seriehistorica/$de/$ax/ajustada";
 	loguear( "precios: $url" );
 
 	$ch = curl_init();
@@ -441,6 +468,7 @@ function precios( $tck, $de, $a, $bearer ){
 		//en algun momento la historica lo trae, chequeamos si lo trajo a hoy, para no meterlo dos veces en el a-rray
 		//ademas chequeamos que la cotiz recibida no sea anterior al hasta solicitado
 		if( $ultc != $ulth && $ultc >= $a ){
+			$cotiz["sinvol"] = 1;
 			array_unshift( $preciosa, $cotiz );
 			$hayprecios = 1;
 		}
@@ -597,6 +625,7 @@ function form( $usr, $pas, $panel, $cotiz, $tck, $de, $a, $bearer ){
 	<input type=submit name=updall value=updall>
 	<hr>
 	<input type=submit name=sqlite value=sqlite>
+	<input type=submit name=updvol value=updvol>
 	<textarea rows=4 cols=100 name=bearer>$bearer</textarea>
 	</form>
 
@@ -719,7 +748,8 @@ function json( $tck, $de, $a ){
 	$ret = "[\n";
 	$pra = preciosdb( $tck, $de, $a );
 	foreach( $pra as $key => $pr ){
-		$ret = $ret . "[" . strtotime( $pr["fec"] ) . "000" . "," . number_format( (float) $pr["close"], 2, '.', '' ) . "]";
+		$ret = $ret . "[" . strtotime( $pr["fec"] ) . "000" . "," 
+		 . number_format( (float) $pr["close"], 2, '.', '' ) . "]";
 		if( $key < count( $pra ) - 1 )
 			$ret = $ret . ",\n";
 	}
@@ -773,7 +803,107 @@ $.getJSON( '$url', function( data ){
 FINN;
 
 	}
+
+	foreach ( $as as $key => $value) {
+		$asx = assets( 'all', $value );
+		$den = $asx[0]["den"];
+		$tx = $asx[0]["tck"];
+
+		$pra = preciosdb( $tx, $de, $a, 1 );
+		foreach( $pra as $key => $pr ){
+			echo "<div class=precio><span>" . $tx . " " . $pr["fec"] . "</span>"
+			. "<span>" .  str_pad( number_format( (float) $pr["close"], 2, '.', ',' ), 10, " ", STR_PAD_LEFT ) . "</span>"
+			. "<span> " . str_pad( number_format( (float) $pr["montop"], 2, '.', ',' ), 15, " ", STR_PAD_LEFT ). "</span>"
+			. "<span> " . str_pad( number_format( (float) $pr["vol"], 0, '.', ',' ), 15, " ", STR_PAD_LEFT ). "</span>"
+			. "<span>" . $pr["obs"] . "</span>"
+			. "</div>";
+		}
+	}
 	return "ok";
+}
+
+//------------------------------------------------
+// updvol
+//------------------------------------------------
+function updvol( $tck, $de = "2018-01-01", $a = "hoy", $bearer ){
+	if( $a == "hoy" )
+		$a = fecha_hoy();
+
+	$database = 'mkt';
+	$dsn = "sqlite:$database.db";
+
+	try {
+		$pdo = new PDO( $dsn ); // sqlite
+	} catch( PDOException $e ) {
+		loguear( "pdb: error en conn: " . $e->getMessage(), "error" );
+		return;
+	}
+
+	$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+  $pdo->beginTransaction();
+
+	//pds es un objeto pdostatement , que define interfaz iterable, por eso funciona el foreach 
+	$sql = "select * from as_pr ap where ap.tck = '" . $tck . "' and ap.fec between '" . $de . "' and '" . $a . "' and obs = 'sinvol' order by fec desc";
+	try {
+		$pds = $pdo->query( $sql );
+	} catch( PDOException $e ) {
+		loguear( "updv: error en sel: " . $e->getMessage() . " sql es $sql", "error" );
+		return;
+	}
+
+	$cant = 0;
+	foreach( $pds as $row ){
+		$preciosa = precios( $tck, $row["fec"], $row["fec"], $bearer );
+		if( $preciosa ){
+
+			$open = $preciosa[0]["apertura"];
+			$close = $preciosa[0]["ultimoPrecio"];
+			$min = $preciosa[0]["minimo"];
+			$max = $preciosa[0]["maximo"];
+			$vol = $preciosa[0]["volumenNominal"];
+			$montop = $preciosa[0]["montoOperado"];
+			$fec = $row["fec"];
+
+			$sql = <<<FINN
+			update as_pr set 
+				open = $open,
+				close = $close,
+				min = $min,
+				max = $max,
+				vol = $vol,
+				montop = $montop,
+				obs = null
+			where tck = '$tck'
+				and fec = '$fec';
+FINN;
+
+			try {
+				$pdo->exec( $sql );
+			} catch( PDOException $e ) {
+				$error = $e->getMessage();
+				$pdo->rollback();
+				loguear( "pers: error en ins: " . $error . " sql $sql", "error" );
+				return -1;
+			}
+			$cant++;
+		}
+	}
+
+	if( $cant ){
+		try {
+			$pdo->commit();
+		} catch( PDOException $e ) {
+			loguear( "pers $tck $de $a: error en c-ommit: " . $e->getMessage(), "error" );
+			return -1;
+		}
+	}
+	
+	$pdo = null; //para close connection 
+	$pds = null; //para close connection
+
+
+	return $cant;
 }
 
 ?>

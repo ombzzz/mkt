@@ -20,7 +20,14 @@ input {
 	font-family: "courier new";
 }
 
-.precio span{
+.precioopc{
+	white-space: pre-wrap;
+	font-family: "courier new";
+	color: blue;
+	margin-left: 30px;
+}
+
+.precio span, .precioopc span{
 	margin-left: 5px;
 }
 .log {
@@ -101,7 +108,7 @@ function main(){
 		}
 	}
 	if( $preciosdb == "preciosdb" ){
-		$pra = preciosdb( trim(strtolower( $tck )), $de, $a );
+		$pra = preciosdb( trim(strtolower( $tck )), $de, $a, 1 );
 		if( !is_array( $pra ) ){
 			echo "<div>problemas obteniendo precios</div>";
 		}
@@ -115,6 +122,9 @@ function main(){
 		}
 	}
 	if( $graf == "graf" ){
+		if( preg_match( "/merval/i", $tck ) == 0 )
+			$tck = $tck . " merval";
+
 		graf( trim( strtolower( $tck )), $de, $a );
 	}
 	if( $sqlite == "sqlite" ){
@@ -169,7 +179,7 @@ function updall( $bearer ){
 	loguear( "updall invocado" );
 	$cant = 0;
 
-	$asx = assets( 'bcba' );
+	$asx = assets( 'bcba', 'todos', 'acc' );
 
 	foreach( $asx as $as ){
 		$res = upd( $as["tck"], $bearer );
@@ -185,7 +195,7 @@ function updall( $bearer ){
 //------------------------------------------------
 // assets
 //------------------------------------------------
-function assets( $mkt, $tck = 'todos' ){
+function assets( $mkt = 'todos', $tck = 'todos', $tipo = 'todos', $getopc = 0 ){
 	$database = 'mkt';
 	$dsn = "sqlite:$database.db";
 
@@ -198,19 +208,50 @@ function assets( $mkt, $tck = 'todos' ){
 
 	$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-	if( $tck == 'todos' )
-		$criterio = "";
-	else if( strlen( $tck ) > 0 )
-		$criterio = "and tck = '" . $tck . "'";
+	if( $tipo == 'todos' )
+		$criterio2 = "";
+	else if( strlen( $tipo ) > 0 )
+		$criterio2 = "and tipo = '" . $tipo . "'";
 	else {
-		loguear( "ass: por favor indique criterio de seleccion", "error" );
+		loguear( "ass: por favor indique tipo", "error" );
 		return false;
 	}
 
 	//pds es un objeto pdostatement , que define interfaz iterable, por eso funciona el foreach 
 	try {
-		$sql = "select * from asset a where ( a.mkt = '" . $mkt . "' or 'all' = '"  . $mkt . "' ) "
-		 . " $criterio order by a.tck";
+		if( $getopc ){
+			//llamador nos pasa un ticker de una accion y nos pide le devolvamos todas las opciones de esa accion
+
+			if( $tipo <> 'opc' ){
+				loguear( "ass: para acciones de opcion por favor pasar tipo opc, se recibio $tipo", "error" );
+				return false;
+			}
+
+			if( $tck == 'todos' )
+				$criterio = "";
+			else if( strlen( $tck ) > 0 )
+				$criterio = "and substr( a.tck, 1, 3 ) = ( select b.opctck from asset b where b.tipo = 'acc' and b.tck = '" . $tck . "' )";
+			else {
+				loguear( "ass: por favor indique tck", "error" );
+				return false;
+			}
+
+			$sql = "select * from asset a where ( a.mkt = '" . $mkt . "' or 'todos' = '"  . $mkt . "' ) "
+			 . " $criterio $criterio2 order by a.tck";
+		}
+		else {
+			if( $tck == 'todos' )
+				$criterio = "";
+			else if( strlen( $tck ) > 0 )
+				$criterio = "and tck = '" . $tck . "'";
+			else {
+				loguear( "ass: por favor indique tck", "error" );
+				return false;
+			}
+
+			$sql = "select * from asset a where ( a.mkt = '" . $mkt . "' or 'todos' = '"  . $mkt . "' ) "
+			 . " $criterio $criterio2 order by a.tck";
+		}
 		$pds = $pdo->query( $sql );
 	} catch( PDOException $e ) {
 		loguear( "ass: error en sel: " . $e->getMessage() . " sql fue " . $sql, "error" );
@@ -241,7 +282,7 @@ function preciosdb( $tck, $de = "2018-01-01", $a = "hoy", $desc = 0 ){
 		$pdo = new PDO( $dsn ); // sqlite
 	} catch( PDOException $e ) {
 		loguear( "pdb: error en conn: " . $e->getMessage(), "error" );
-		return;
+		return false;
 	}
 
 	$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
@@ -252,17 +293,21 @@ function preciosdb( $tck, $de = "2018-01-01", $a = "hoy", $desc = 0 ){
 		$descx = "order by fec";
 
 	//pds es un objeto pdostatement , que define interfaz iterable, por eso funciona el foreach 
-	$sql = "select * from as_pr ap where ap.tck = '" . $tck . "' and ap.fec between '" . $de . "' and '" . $a . "' $descx";
+	$sql = "select * from as_pr ap where ap.tck = '" . $tck . "' and not ( ap.obs = 'opc' and ap.close = 0 ) and ap.fec between '" . $de . "' and '" . $a . "' $descx";
 	try {
 		$pds = $pdo->query( $sql );
 	} catch( PDOException $e ) {
 		loguear( "pdb: error en sel: " . $e->getMessage() . " sql es $sql", "error" );
-		return;
+		return false;
 	}
 
 	$i = 0;
-	foreach( $pds as $row )
+	foreach( $pds as $row ){
 		$res[$i++] = $row;
+	}
+
+	if( $i == 0 )
+		$res = [];
 
 	$pdo = null; //para close connection 
 	$pds = null; //para close connection
@@ -459,7 +504,7 @@ function pers( $tck, $de, $a, $bearer ){
 		return -1;
 	}
 	else {
-	 loguear( "pers $tck $de $a: " . count( $preciosa ) . " precios obtenidos, recorriendo" );
+	 loguear( "pers $tck $de $a: " . count( $preciosa ) . " precios obtenidos <- se recorreran e insertaran" );
 	}
 
 	$database = 'mkt';
@@ -499,7 +544,7 @@ function pers( $tck, $de, $a, $bearer ){
 			$max,
 			$vol,
 			$montop,
-			$obs
+			'$obs'
 		)
 FINN;
 
@@ -589,7 +634,7 @@ function precios( $tck, $de, $a, $bearer ){
 		$dummy = 0;
 	else {
 		loguear( "precios: algun param nulo tck $tck de $de a $a bearer $bearer", "error" );
-		return -1;
+		return false;
 	}
 
 	$hayprecios = 0;
@@ -922,6 +967,10 @@ function json( $tck, $de, $a ){
 	// return;
 	$ret = "[\n";
 	$pra = preciosdb( $tck, $de, $a );
+	if( !is_array( $pra ) && $pra == false ){
+		return false;
+	}
+
 	foreach( $pra as $key => $pr ){
 		$ret = $ret . "[" . strtotime( $pr["fec"] ) . "000" . "," 
 		 . number_format( (float) $pr["close"], 2, '.', '' ) . "]";
@@ -937,7 +986,6 @@ function json( $tck, $de, $a ){
 // graf
 //------------------------------------------------
 function graf( $tck, $de, $a ){
-	echo $tck;
 	$tck = str_replace( "\r\n", " ", $tck );
 	$tck = str_replace( "\n", " ", $tck );
 
@@ -947,15 +995,14 @@ function graf( $tck, $de, $a ){
 	$as = explode( " ", trim( $tck ) );
 
 	foreach ( $as as $key => $value) {
-		$asx = assets( 'all', $value );
+		$asx = assets( 'todos', $value );
 		$den = $asx[0]["den"];
 		$tx = $asx[0]["tck"];
 
 		$url = "index.php?json=$tx&de=$de&a=$a";
-		echo $url;
 
 		echo <<<FINN
-<div id="container_$tx" style="height: 600px; min-width: 310px"></div>
+<div id="container_$tx" style="height: 350px; min-width: 310px"></div>
 
 <script>
 $.getJSON( '$url', function( data ){
@@ -981,20 +1028,51 @@ FINN;
 	}
 
 	foreach ( $as as $key => $value) {
-		$asx = assets( 'all', $value );
+		$asx = assets( 'todos', $value );
 		$den = $asx[0]["den"];
 		$tx = $asx[0]["tck"];
 
-		$pra = preciosdb( $tx, $de, $a );
-		foreach( $pra as $key => $pr ){
-			echo "<div class=precio><span>" . $tx . " " . $pr["fec"] . "</span>"
-			. "<span>" .  str_pad( number_format( (float) $pr["close"], 2, '.', ',' ), 10, " ", STR_PAD_LEFT ) . "</span>"
-			. "<span> " . str_pad( number_format( (float) $pr["montop"], 2, '.', ',' ), 15, " ", STR_PAD_LEFT ). "</span>"
-			. "<span> " . str_pad( number_format( (float) $pr["vol"], 0, '.', ',' ), 15, " ", STR_PAD_LEFT ). "</span>"
-			. "<span>" . $pr["obs"] . "</span>"
-			. "</div>";
+		$pra = preciosdb( $tx, $de, $a, 1 );
+		if( !is_array( $pra ) && $pra == false ){
+			return "error en preciosdb";
 		}
-	}
+
+		$cant = 0;
+		if( count($pra)){
+			foreach( $pra as $key => $pr ){
+				if( $cant == 0 )
+					$fechaparaopc = $pr["fec"];
+
+				echo "<div class=precio><span>" . $tx . " " . $pr["fec"] . "</span>"
+				. "<span>" .  str_pad( number_format( (float) $pr["close"], 2, '.', ',' ), 10, " ", STR_PAD_LEFT ) . "</span>"
+				. "<span> " . str_pad( number_format( (float) $pr["montop"], 2, '.', ',' ), 15, " ", STR_PAD_LEFT ). "</span>"
+				. "<span> " . str_pad( number_format( (float) $pr["vol"], 0, '.', ',' ), 15, " ", STR_PAD_LEFT ). "</span>"
+				. "<span> " . $pr["obs"] . "</span>"
+				. "</div>";
+				$cant++;
+
+			} //fin recorrida de precios
+		}
+		//mostramos las opciones del share
+		$opca = assets( 'todos', $tx, 'opc', 1 );
+		if( count($opca ) ){
+			foreach( $opca as $key2 => $opc ){
+				$popc = preciosdb( $opca[$key2]["tck"], $fechaparaopc, $fechaparaopc, 1 );
+				if( !is_array( $popc ) && $popc == false ){
+					return "error (2) en preciosdb";
+				}
+
+				if( count($popc) ){
+					echo "<div class=precioopc><span>" . $opca[$key2]["tck"] . " " . $fechaparaopc . "</span>"
+					. "<span>" .  str_pad( number_format( (float) $popc[0]["close"], 2, '.', ',' ), 10, " ", STR_PAD_LEFT ) . "</span>"
+					. "<span> " . str_pad( number_format( (float) $popc[0]["montop"], 2, '.', ',' ), 15, " ", STR_PAD_LEFT ). "</span>"
+					. "<span> " . str_pad( number_format( (float) $popc[0]["vol"], 0, '.', ',' ), 15, " ", STR_PAD_LEFT ). "</span>"
+					. "<span> " . $popc[0]["obs"] . "</span>"
+					. "</div>";
+				} //fin hay precio <> 0 para la opcion
+			} //fin recorrida de opciones
+		} //fin hay opciones para la accion
+	} //fin recorrida de assets
 	return "ok";
 }
 

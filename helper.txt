@@ -255,6 +255,7 @@ wget -c -O $x.csv http://www.ravaonline.com/v2/empresas/precioshistoricos.php?e=
 done
 
 for x in merval; do
+rm $x.0.csv
 awk -vt=$x ' NR >= 2 { print t "," $0}' $x.csv >> $x.0.csv
 done
 

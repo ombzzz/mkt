@@ -62,6 +62,8 @@ function main(){
 	$updall = $_POST["updall"];
 	$updvol = $_POST["updvol"];
 
+	$opc_updall = $_POST["opc_updall"];
+
 	$json = $_GET["json"];
 
 	if( strlen($de) == 0 )
@@ -99,16 +101,21 @@ function main(){
 		}
 	}
 	if( $preciosdb == "preciosdb" ){
-		$pra = preciosdb( $tck, $de, $a );
-		foreach( $pra as $key => $pr ){
-			echo "<div class=precio><span>" . $pr["fec"] . "</span>"
-			. "<span>" .  str_pad( number_format( (float) $pr["close"], 2, '.', '' ), 10, " ", STR_PAD_LEFT ) . "</span>"
-			. "<span> " . str_pad( number_format( (float) $pr["montop"], 2, '.', '' ), 15, " ", STR_PAD_LEFT ). "</span>"
-			. "</div>";
+		$pra = preciosdb( trim(strtolower( $tck )), $de, $a );
+		if( !is_array( $pra ) ){
+			echo "<div>problemas obteniendo precios</div>";
+		}
+		else {
+			foreach( $pra as $key => $pr ){
+				echo "<div class=precio><span>" . $pr["fec"] . "</span>"
+				. "<span>" .  str_pad( number_format( (float) $pr["close"], 2, '.', '' ), 10, " ", STR_PAD_LEFT ) . "</span>"
+				. "<span> " . str_pad( number_format( (float) $pr["montop"], 2, '.', '' ), 15, " ", STR_PAD_LEFT ). "</span>"
+				. "</div>";
+			}
 		}
 	}
 	if( $graf == "graf" ){
-		graf( $tck, $de, $a );
+		graf( trim( strtolower( $tck )), $de, $a );
 	}
 	if( $sqlite == "sqlite" ){
 		sqlite();
@@ -128,6 +135,11 @@ function main(){
 	}
 	if( $updvol == "updvol" ){
 		$cant = updvol(  $tck, $de, $a, $bearer );
+		echo "<div>$cant precios actualizados</div>";
+	}
+
+	if( $opc_updall == "opc_updall" ){
+		$cant = opc_updall( $bearer );
 		echo "<div>$cant precios actualizados</div>";
 	}
 
@@ -288,6 +300,152 @@ function upd( $tck, $bearer ){
 	}
 }
 
+
+//------------------------------------------------
+// upd
+//------------------------------------------------
+function opc_updall( $bearer ){
+	loguear( "opc_upda: invocado" );
+
+	$url = "https://api.invertironline.com/api/Cotizaciones/Opciones/De%20Acciones/argentina";
+	loguear( "opc_upda: $url" );
+
+	$ch = curl_init();
+	curl_setopt( $ch, CURLOPT_URL, $url );
+	curl_setopt( $ch, CURLOPT_HTTPHEADER, array( "Authorization: Bearer $bearer" ) );
+	curl_setopt( $ch, CURLOPT_RETURNTRANSFER, true );
+	$server_output = curl_exec( $ch );
+	curl_close( $ch );
+
+	$preciosa = json_decode( $server_output, true );
+	if( !is_array( $preciosa ) ){
+		loguear( "opc_upda: no vino un array", "error" );
+		return -1;
+	}
+	else if( count( $preciosa ) == 1 && "xx" . key( $preciosa ) == "xxmessage" ){
+		loguear( "opc_upda: error: " . $preciosa["message"], "error" );
+		return false;
+	}
+	else if( count( $preciosa ) == 0 ){
+		loguear( "opc_upda: array con cero elementos", "error" );
+	}
+
+	$database = 'mkt';
+	$dsn = "sqlite:$database.db";
+	try {
+		$pdo = new PDO( $dsn ); // sqlite
+	} catch( PDOException $e ) {
+		loguear( "opcupd $tck: error en conn: " . $e->getMessage(), "error" );
+		return;
+	}
+
+	$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+  $pdo->beginTransaction();
+
+	//"titulos": [
+  //  {
+  //      "simbolo": "AGRC17.0AB",
+  //      "puntas": {
+  //          "cantidadCompra": 5,
+  //          "precioCompra": 2.55,
+  //          "precioVenta": 3.4,
+  //          "cantidadVenta": 2
+  //      },
+  //      "ultimoPrecio": 3.2,
+  //      "variacionPorcentual": 6.66,
+  //      "apertura": 3.6,
+  //      "maximo": 3.6,
+  //      "minimo": 2.4,
+  //      "ultimoCierre": 3.2,
+  //      "volumen": 134,
+  //      "cantidadOperaciones": 17,
+  //      "fecha": "2018-03-09T17:00:16.053",
+  //      "tipoOpcion": null,
+  //      "precioEjercicio": null,
+  //      "fechaVencimiento": null,
+  //      "mercado": "BCBA",
+  //      "moneda": "AR$"
+  //  }
+  //]
+  $cant = 0;
+	foreach( $preciosa["titulos"] as $key => $value ){
+
+		$tck = strtolower( $value["simbolo"] );
+		$fec = substr( $value["fecha"], 0, 10 );
+		$open = $value["apertura"];
+		$close = $value["ultimoPrecio"];
+		$min = $value["minimo"];
+		$max = $value["maximo"];
+		$vol = $value["volumen"];
+		$cantop = $value["cantidadOperaciones"];
+		$montop = $vol * (( $max + $min ) / 2 );
+		$bid = $value["puntas"]["precioCompra"];
+		$bidq = $value["puntas"]["cantidadCompra"];
+		$ask = $value["puntas"]["precioVenta"];
+		$askq = $value["puntas"]["cantidadVenta"];
+
+		$sql = <<<FINN
+		insert or replace into as_pr( tck, fec, open, close, min, max, vol, montop, obs, cantop, bid, bidq, ask, askq ) values (
+			'$tck',
+			'$fec',
+			$open,
+			$close,
+			$min,
+			$max,
+			$vol,
+			$montop,
+			'opc',
+			$cantop,
+			$bid,
+			$bidq,
+			$ask,
+			$askq
+		)
+FINN;
+
+		try {
+			$pdo->exec( $sql );
+		} catch( PDOException $e ) {
+			$pdo->rollback();
+			loguear( "opc_upda: error en ins: " . $e->getMessage() . " sql $sql", "error" );
+			return -1;
+		}
+
+		$sql = <<<FINN
+		insert or replace into asset( tck, den, mkt, tipo ) values (
+			'$tck',
+			'$tck',
+			'bcba',
+			'opc'
+		)
+FINN;
+
+		try {
+			$pdo->exec( $sql );
+		} catch( PDOException $e ) {
+			$pdo->rollback();
+			loguear( "opc_upda: error en ins: " . $e->getMessage() . " sql $sql", "error" );
+			return -1;
+		}
+
+		$cant++;
+	}	if($cant){
+		try {
+			$pdo->commit();
+		} catch( PDOException $e ) {
+			loguear( "opc_upda:: error en c-ommit: " . $e->getMessage(), "error" );
+			return -1;
+		}
+		loguear( "opc_upda: --commit--" );
+	}
+	
+	$pdo = null; //para close connection 
+	$pds = null; //para close connection
+
+	return $cant;
+}
+
 //------------------------------------------------
 // pers
 //------------------------------------------------
@@ -426,6 +584,14 @@ function last( $tck ){
 */
 //------------------------------------------------
 function precios( $tck, $de, $a, $bearer ){
+
+	if( strlen( $tck ) > 0 && strlen( $de ) > 0 && strlen( $a ) > 0 && strlen( $bearer ) > 0 )
+		$dummy = 0;
+	else {
+		loguear( "precios: algun param nulo tck $tck de $de a $a bearer $bearer", "error" );
+		return -1;
+	}
+
 	$hayprecios = 0;
 	$tck = strtoupper($tck);
 
@@ -435,7 +601,7 @@ function precios( $tck, $de, $a, $bearer ){
 	//GET /api/{mercado}/Titulos/{simbolo}/Cotizacion/seriehistorica/{fechaDesde}/{fechaHasta}/{ajustada}
 	//mercado: bCBA, nYSE, nASDAQ, aMEX, bCS, rOFX
 	$url = "https://api.invertironline.com/api/bCBA/Titulos/$tck/Cotizacion/seriehistorica/$de/$ax/ajustada";
-	loguear( "precios: $url" );
+	loguear( "precios $tck: $url" );
 
 	$ch = curl_init();
 	curl_setopt( $ch, CURLOPT_URL, $url );
@@ -446,11 +612,11 @@ function precios( $tck, $de, $a, $bearer ){
 
 	$preciosa = json_decode( $server_output, true );
 	if( count( $preciosa ) == 1 && "xx" . key( $preciosa ) == "xxmessage" ){
-		loguear( "precios: error: " . $preciosa["message"], "error" );
+		loguear( "precios $tck: error: " . $preciosa["message"], "error" );
 		return false;
 	}
 	else if( count( $preciosa ) == 0 ){
-		loguear( "precios: sin precios historicos para $tck" );
+		loguear( "precios $tck: sin precios historicos para $tck" );
 	}
 	else if( $preciosa[0]["fechaHora"] > 0 ){
 		$hayprecios = 1;
@@ -461,8 +627,14 @@ function precios( $tck, $de, $a, $bearer ){
 	}
 
 	if( $a == fecha_hoy() ){
+		loguear( "precios $tck: $a es hoy => llamando a cotiz" );
 		//serie historica no devuelve el precio de hoy, lo buscamo434s por cotizacion
 		$cotiz = cotiz( $bearer, $tck );
+		if( !is_array( $cotiz ) && $cotiz == false ){
+			loguear( "precios $tck: problemas en cotiz, no volvio un array", "error" );
+			return false;
+		}
+
 		$ulth = substr( $preciosa[ count($preciosa)-1 ]["fechaHora"], 0, 10 );
 		$ultc = substr( $cotiz["fechaHora"], 0, 10 );
 		//en algun momento la historica lo trae, chequeamos si lo trajo a hoy, para no meterlo dos veces en el a-rray
@@ -574,9 +746,10 @@ function panel( $bearer, $panel ){
 // cantidadOperaciones:137
 //------------------------------------------------
 function cotiz( $bearer, $tck ){
-	//$url = "https://api.invertironline.com/api/argentina/Titulos/Cotizacion/Paneles/Acciones";
 	$tck = strtoupper($tck);
 	$url = "https://api.invertironline.com/api/bCBA/Titulos/$tck/Cotizacion";
+
+	loguear( "cotiz: $url");
 
 	$ch = curl_init();
 	curl_setopt( $ch, CURLOPT_URL, $url );
@@ -623,6 +796,8 @@ function form( $usr, $pas, $panel, $cotiz, $tck, $de, $a, $bearer ){
 	<input type=submit name=pers value=pers>
 	<input type=submit name=upd value=upd>
 	<input type=submit name=updall value=updall>
+	<hr>
+	<input type=submit name=opc_updall value=opc_updall>
 	<hr>
 	<input type=submit name=sqlite value=sqlite>
 	<input type=submit name=updvol value=updvol>
@@ -762,7 +937,7 @@ function json( $tck, $de, $a ){
 // graf
 //------------------------------------------------
 function graf( $tck, $de, $a ){
-
+	echo $tck;
 	$tck = str_replace( "\r\n", " ", $tck );
 	$tck = str_replace( "\n", " ", $tck );
 
@@ -777,6 +952,7 @@ function graf( $tck, $de, $a ){
 		$tx = $asx[0]["tck"];
 
 		$url = "index.php?json=$tx&de=$de&a=$a";
+		echo $url;
 
 		echo <<<FINN
 <div id="container_$tx" style="height: 600px; min-width: 310px"></div>
@@ -809,7 +985,7 @@ FINN;
 		$den = $asx[0]["den"];
 		$tx = $asx[0]["tck"];
 
-		$pra = preciosdb( $tx, $de, $a, 1 );
+		$pra = preciosdb( $tx, $de, $a );
 		foreach( $pra as $key => $pr ){
 			echo "<div class=precio><span>" . $tx . " " . $pr["fec"] . "</span>"
 			. "<span>" .  str_pad( number_format( (float) $pr["close"], 2, '.', ',' ), 10, " ", STR_PAD_LEFT ) . "</span>"

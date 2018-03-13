@@ -155,7 +155,7 @@ function main(){
 	}
 
 	if( $opc_collar == "opc_collar" ){
-		opc_collar( $tck );
+		opc_collar( $tck, $hoy );
 	}
 
 	form( $usr, $pas, $panel, $cotiz, $tck, $de, $a, $bearer );
@@ -521,6 +521,104 @@ FINN;
 function opc_strike( $opc ){
 	preg_match( "/[a-zA-Z]+([0-9.]+)[a-zA-Z][a-zA-Z]/", $opc, $matches );
 	return $matches[1] . "00";
+}
+
+//------------------------------------------------
+// opc calls
+//
+// recibe un ticker de share y una fecha, devuelve sus calls que tengan cotizacion para esa fecha
+//------------------------------------------------
+function opc_calls( $tck, $fec, $conbid = 0, $conask = 0 ){
+
+	$asx = assets( 'todos', $tck );
+	$opcpref = $asx[0]["opctck"];
+
+	$database = 'mkt';
+	$dsn = "sqlite:$database.db";
+
+	try {
+		$pdo = new PDO( $dsn ); // sqlite
+	} catch( PDOException $e ) {
+		die ( 'Oops' . $e->getMessage() ); // Exit, displaying an error message
+	}
+
+	$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+	if( $conbid )
+		$criterio = " and bid <> 0";
+	if( $conask )
+		$criterio = " and ask <> 0";
+
+	//pds es un objeto pdostatement , que define interfaz iterable, por eso funciona el foreach 
+	$sql = "select ap.tck from as_pr ap where ap.fec = '$fec' and ap.obs = 'opc' and substr( ap.tck, 1, length( '$opcpref' ) ) = '$opcpref' and substr( ap.tck, length( '$opcpref') + 1, 1 ) = 'c' and ap.close <> 0 $criterio order by ap.tck";
+
+	try {
+		$pds = $pdo->query( $sql );
+	} catch( PDOException $e ) {
+		loguear( "opcc: error en sel: " . $e->getMessage() . " sql es $sql", "error" );
+		return;
+	}
+
+	$i = 0;
+	foreach( $pds as $row ){
+		$adevolver[$i++] = $row[ "tck" ];
+	}
+	$pdo = null; //para close connection 
+	$pds = null; //para close connection
+
+	if( $i == 0 )
+		$adevolver = [];
+
+	return $adevolver;
+}
+
+//------------------------------------------------
+// opc puts
+//
+// recibe un ticker de share y una fecha, devuelve sus calls que tengan cotizacion para esa fecha
+//------------------------------------------------
+function opc_puts( $tck, $fec, $conbid = 0, $conask = 0 ){
+
+	$asx = assets( 'todos', $tck );
+	$opcpref = $asx[0]["opctck"];
+
+	$database = 'mkt';
+	$dsn = "sqlite:$database.db";
+
+	try {
+		$pdo = new PDO( $dsn ); // sqlite
+	} catch( PDOException $e ) {
+		die ( 'Oops' . $e->getMessage() ); // Exit, displaying an error message
+	}
+
+	$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+	if( $conbid )
+		$criterio = " and bid <> 0";
+	if( $conask )
+		$criterio = " and ask <> 0";
+
+	//pds es un objeto pdostatement , que define interfaz iterable, por eso funciona el foreach 
+	$sql = "select ap.tck from as_pr ap where ap.fec = '$fec' and ap.obs = 'opc' and substr( ap.tck, 1, length( '$opcpref' ) ) = '$opcpref' and substr( ap.tck, length( '$opcpref') + 1, 1 ) = 'v' and ap.close <> 0 $criterio order by ap.tck";
+
+	try {
+		$pds = $pdo->query( $sql );
+	} catch( PDOException $e ) {
+		loguear( "opcc: error en sel: " . $e->getMessage() . " sql es $sql", "error" );
+		return;
+	}
+
+	$i = 0;
+	foreach( $pds as $row ){
+		$adevolver[$i++] = $row[ "tck" ];
+	}
+	$pdo = null; //para close connection 
+	$pds = null; //para close connection
+
+	if( $i == 0 )
+		$adevolver = [];
+
+	return $adevolver;
 }
 
 //------------------------------------------------
@@ -1127,6 +1225,7 @@ FINN;
 				} //fin hay precio <> 0 para la opcion
 			} //fin recorrida de opciones
 		} //fin hay opciones para la accion
+		opc_collar($tx, $fechaparaopc );
 	} //fin recorrida de assets
 	return "ok";
 }
@@ -1218,7 +1317,7 @@ FINN;
 //------------------------------------------------
 // opc collar
 //------------------------------------------------
-function opc_collar( $tck, $lotes = 1 ){
+function opc_collar( $tck, $fec = "0", $lotes = 1, $debug = 0 ){
 	echo "<div class=debug>collar invocado para $lotes lotes de $tck</div>";
 
 	//yo llamo "collar" a lo siguiente,,,no se si es lo que verdaderamente significa, pero por ahora le pongo
@@ -1249,92 +1348,135 @@ function opc_collar( $tck, $lotes = 1 ){
 	//resultado = 0.46% k23=(K22-K9)/K9
 
 	//***
+	if( $fec == "0" )
+		$fec = fecha_hoy();
 
-	//comision min(iva incl) 42.35(k4)
-	$k4 = 42.35;
-	echo "<div class=debug>comision min(iva incl) $k4 </div>";
-
-	//comision(iva incl) 0.01 (k6)
-	$k6 = 0.01;
-	echo "<div class=debug>comision(iva incl) $k6</div>";
-
-	//apbr(shr) 			cotiza a 	148.5(g4)		
-	$hoy = fecha_hoy();
-	$shr= $tck;
-	$g4 = cotizdb( $shr, "close", $hoy );
-	if( $g4 < 0 ){
-		loguear( "collar: cotizdb volvio con $g4 para $shr $hoy", "error" );
-		return 1;
+	$calls = opc_calls( $tck, $fec, 1 );
+	if( count($calls) == 0 ){
+		echo "<div class=debug> sin calls para $tck $fec</div>";
+		return 0;
 	}
-	echo "<div class=debug>shr $shr cotiza $hoy a $g4</div>";
 
-	//pbrc130.ab(call)	tiene strike	130(e5)	cotiza a	24(g5) <- el strike debe ser mayor a precioef
-	$call = "pbrc130.ab";
-	$e5 = opc_strike( $call );
-	$g5 = cotizdb( $call, "bid", $hoy );
-	if( $g5 < 0 ){
-		loguear( "collar: cotizdb volvio con $g5 para $call $hoy", "error" );
-		return 1;
-	}
-	echo "<div class=debug>call $call tiene strike	$e5 cotiza a $g5 <- el strike debe ser mayor a precioef</div>";
+	foreach( $calls as $key => $call ){
+		$puts = opc_puts( $tck, $fec, 0, 1 );
+		if( count($puts) == 0 ){
+			echo "<div class=debug>sin puts para $tck $fec</div>";
+			return 0;
+		}
 
-	//pbrv130.ab(put)	tiene strike	130(e6)	cotiza a	1.7(g6) <- el strike debe ser mayor a precioef
-	$put = "pbrv130.ab";
-	$e6 = opc_strike( $put );
-	$g6 = cotizdb( $put, "ask", $hoy );
-	if( $g6 < 0 ){
-		loguear( "collar: cotizdb volvio con $g6 para $call $hoy", "error" );
-		return 1;
-	}
-	echo "<div class=debug>put $put tiene strike	$e6 cotiza a $g6 <- el strike debe ser mayor a precioef</div>";
+		foreach( $puts as $key2 => $put ){
 
-	//lanzo	1(d10)	lote de	(call)
-	$d10 = $lotes;
-	//compro	1(d12=d10)	lote de	(put)
-	$d12 = $d10;
-	//compro	100(d9=d10*100)	shares de	(shr)
-	$d9 = $d10 * 100;
+			//comision min(iva incl) 42.35(k4)
+			$k4 = 42.35;
 
-	//precioef = 128.1085 k9=G4*(1+K6)+if(G6*K6*D9<K4,G6+K4/D9,G6*(1+K6))-G5
-	$k9 = $g4*(1+$k6);
-	if( $g6 * $k6 * $d9 < $k4 )
-		$aux = $g6 + $k4 / $d9;
-	else
-		$aux = $g6 * ( 1 + $k6 );
+			if( $debug )
+			echo "<div class=debug>comision min(iva incl) $k4 </div>";
 
-	$k9 = $k9 + $aux - $g5;
-	$precioef = $k9;
-	echo "<div class=debug>precioef_shr = $precioef = k9 = G4 $g4 * ( 1 + k6 $k6 ) + if ( g6 $g6 * k6 $k6 * d9 $d9 < k4 $k4, g6 $g6 + k4 $k4 / d9 $d9, g6 $g6 * (1+ k6 $k6 ) ) - g5 $g5 </div>";
+			//comision(iva incl) 0.01 (k6)
+			$k6 = 0.01;
 
-	//ESCEN 1	pbr cotiza a mas de 	130(e5)
-	//entonces me ejercen el call
-	//precioef = 128.7 k16=e5*(1-k6)
-	$k16 = $e5 * ( 1 - $k6);
-	$precioef_esc1 = $k16;
-	echo "<div class=debug>precioef_esc1 = $k16 = k16 = e5 $35 * ( 1 - k6 $k6 )</div>";
+			if( $debug )
+			echo "<div class=debug>comision(iva incl) $k6</div>";
 
-	//resultado = 0.46% k17=(k16-k9)/k9
-	$k17 = ( $k16 - $k9 ) / $k9;
-	$k17 = round( $k17, 4 );
-	$result_esc1 = $k17;
-	echo "<div class=debug>result_esc1 = $k17 = k17 = ( k16 $k16 - k9 $k9 ) / k9 $k9</div>";
-	
-	//ESCEN 2	apbr 	cotiza a menos de 130(e6)
-	//entonces ejerzo	el put
-	//precioef = 128.7 k22=e6*(1-k6) 
-	$k22 = $e6 * ( 1 - $k6 );
-	$precioef_esc2 = $k22;
-	echo "<div class=debug>precioef_esc2 = $k22 = k22 = e6 $36 * ( 1 - k6 $k6 )</div>";
+			//apbr(shr) 			cotiza a 	148.5(g4)		
+			$shr= $tck;
+			$g4 = cotizdb( $shr, "close", $fec );
+			if( $g4 < 0 ){
+				loguear( "collar: cotizdb volvio con $g4 para $shr $fec", "error" );
+				return 1;
+			}
 
-	//resultado = 0.46% k23=(k22-k9)/k9
-	$k23 = ($k22-$k9 ) / $k9;
-	$k23 = round( $k23, 4 );
-	$result_esc2 = $k23;
-	echo "<div class=debug>result_esc2 = $k23 = k23 = ( k22 $k22 - k9 $k9 ) / k9 $k9</div>";
+			if( $debug )
+			echo "<div class=debug>shr $shr cotiza $fec a $g4</div>";
 
-	$result_esc1pje = number_format( (float) $result_esc1 * 100, 2, '.', '' ) . "%";
-	$result_esc2pje = number_format( (float) $result_esc2 * 100, 2, '.', '' ) . "%";
-	echo "<div class=collar>$shr $call $put: $result_esc1pje $result_esc2pje</div>\n";
+			//pbrc130.ab(call)	tiene strike	130(e5)	cotiza a	24(g5) <- el strike debe ser mayor a precioef
+			//$call = "pbrc130.ab";
+			$e5 = opc_strike( $call );
+			$g5 = cotizdb( $call, "bid", $fec );
+			if( $g5 < 0 ){
+				loguear( "collar: cotizdb volvio con $g5 para $call $fec", "error" );
+				return 1;
+			}
+
+			if( $debug )
+			echo "<div class=debug>call $call tiene strike	$e5 cotiza a $g5 <- el strike debe ser mayor a precioef</div>";
+
+			//pbrv130.ab(put)	tiene strike	130(e6)	cotiza a	1.7(g6) <- el strike debe ser mayor a precioef
+			//$put = "pbrv130.ab";
+			$e6 = opc_strike( $put );
+			$g6 = cotizdb( $put, "ask", $fec );
+			if( $g6 < 0 ){
+				loguear( "collar: cotizdb volvio con $g6 para $call $fec", "error" );
+				return 1;
+			}
+			if( $debug )
+			echo "<div class=debug>put $put tiene strike	$e6 cotiza a $g6 <- el strike debe ser mayor a precioef</div>";
+
+			//lanzo	1(d10)	lote de	(call)
+			$d10 = $lotes;
+			//compro	1(d12=d10)	lote de	(put)
+			$d12 = $d10;
+			//compro	100(d9=d10*100)	shares de	(shr)
+			$d9 = $d10 * 100;
+
+			//precioef = 128.1085 k9=G4*(1+K6)+if(G6*K6*D9<K4,G6+K4/D9,G6*(1+K6))-G5
+			$k9 = $g4*(1+$k6);
+			if( $g6 * $k6 * $d9 < $k4 )
+				$aux = $g6 + $k4 / $d9;
+			else
+				$aux = $g6 * ( 1 + $k6 );
+
+			$k9 = $k9 + $aux - $g5;
+			$precioef = $k9;
+			if( $debug )
+			echo "<div class=debug>precioef_shr = $precioef = k9 = G4 $g4 * ( 1 + k6 $k6 ) + if ( g6 $g6 * k6 $k6 * d9 $d9 < k4 $k4, g6 $g6 + k4 $k4 / d9 $d9, g6 $g6 * (1+ k6 $k6 ) ) - g5 $g5 </div>";
+
+			//los strikes deben ser mayor a precioef
+			if( $e5 > $precioef && $e6 > $precioef )
+				$dummy = 1;
+			else {
+				if( $debug )
+				echo "<div class=collar>FAIL $shr $call $put: precioef $precioef e5 $e5 e6 $e6</div>\n";
+				continue;
+			}
+
+			//ESCEN 1	pbr cotiza a mas de 	130(e5)
+			//entonces me ejercen el call
+			//precioef = 128.7 k16=e5*(1-k6)
+			$k16 = $e5 * ( 1 - $k6);
+			$precioef_esc1 = $k16;
+			if( $debug )
+			echo "<div class=debug>precioef_esc1 = $k16 = k16 = e5 $35 * ( 1 - k6 $k6 )</div>";
+
+			//resultado = 0.46% k17=(k16-k9)/k9
+			$k17 = ( $k16 - $k9 ) / $k9;
+			$k17 = round( $k17, 4 );
+			$result_esc1 = $k17;
+			if( $debug )
+			echo "<div class=debug>result_esc1 = $k17 = k17 = ( k16 $k16 - k9 $k9 ) / k9 $k9</div>";
+			
+			//ESCEN 2	apbr 	cotiza a menos de 130(e6)
+			//entonces ejerzo	el put
+			//precioef = 128.7 k22=e6*(1-k6) 
+			$k22 = $e6 * ( 1 - $k6 );
+			$precioef_esc2 = $k22;
+			if( $debug )
+			echo "<div class=debug>precioef_esc2 = $k22 = k22 = e6 $36 * ( 1 - k6 $k6 )</div>";
+
+			//resultado = 0.46% k23=(k22-k9)/k9
+			$k23 = ($k22-$k9 ) / $k9;
+			$k23 = round( $k23, 4 );
+			$result_esc2 = $k23;
+			if( $debug )
+			echo "<div class=debug>result_esc2 = $k23 = k23 = ( k22 $k22 - k9 $k9 ) / k9 $k9</div>";
+
+			if( ( $result_esc1 > 0 and $result_esc2 > 0 ) || $debug ) {
+				$result_esc1pje = number_format( (float) $result_esc1 * 100, 2, '.', '' ) . "%";
+				$result_esc2pje = number_format( (float) $result_esc2 * 100, 2, '.', '' ) . "%";
+			}
+			echo "<div class=collar>$shr $call $put: $result_esc1pje $result_esc2pje</div>\n";
+		} //fin recorrida de puts
+	} //fin recorrida de calls
 	return;
 }
 

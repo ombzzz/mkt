@@ -70,6 +70,7 @@ function main(){
 	$updvol = $_POST["updvol"];
 
 	$opc_updall = $_POST["opc_updall"];
+	$opc_collar = $_POST["opc_collar"];
 
 	$json = $_GET["json"];
 
@@ -151,6 +152,10 @@ function main(){
 	if( $opc_updall == "opc_updall" ){
 		$cant = opc_updall( $bearer );
 		echo "<div>$cant precios actualizados</div>";
+	}
+
+	if( $opc_collar == "opc_collar" ){
+		opc_collar( $tck );
 	}
 
 	form( $usr, $pas, $panel, $cotiz, $tck, $de, $a, $bearer );
@@ -266,6 +271,22 @@ function assets( $mkt = 'todos', $tck = 'todos', $tipo = 'todos', $getopc = 0 ){
 	$pds = null; //para close connection
 	
 	return $res;
+}
+
+//------------------------------------------------
+// cotizdb
+//
+// a diferencia de preciosdb devuelve solo el precio ( es decir un escalar, no un a-rray )
+//------------------------------------------------
+function cotizdb( $tck, $tp = "close", $fec = "hoy" ){
+	$pra = preciosdb( $tck, $fec, $fec );
+	if( !is_array( $pra ) && $pra == false ){
+		return -1;
+	}
+	if( count($pra) )
+		return $pra[0][$tp];
+	else
+		return -2;
 }
 
 //------------------------------------------------
@@ -424,7 +445,7 @@ function opc_updall( $bearer ){
 		$max = $value["maximo"];
 		$vol = $value["volumen"];
 		$cantop = $value["cantidadOperaciones"];
-		$montop = $vol * (( $max + $min ) / 2 );
+		$montop = $vol * 100 * (( $max + $min ) / 2 );
 		$bid = $value["puntas"]["precioCompra"];
 		$bidq = $value["puntas"]["cantidadCompra"];
 		$ask = $value["puntas"]["precioVenta"];
@@ -489,6 +510,17 @@ FINN;
 	$pds = null; //para close connection
 
 	return $cant;
+}
+
+//------------------------------------------------
+// opc strike
+//
+// recibe el string de un ticker de opciones, le extrae el precio
+//  de strike y lo devuelve
+//------------------------------------------------
+function opc_strike( $opc ){
+	preg_match( "/[a-zA-Z]+([0-9.]+)[a-zA-Z][a-zA-Z]/", $opc, $matches );
+	return $matches[1] . "00";
 }
 
 //------------------------------------------------
@@ -843,6 +875,7 @@ function form( $usr, $pas, $panel, $cotiz, $tck, $de, $a, $bearer ){
 	<input type=submit name=updall value=updall>
 	<hr>
 	<input type=submit name=opc_updall value=opc_updall>
+	<input type=submit name=opc_collar value=opc_collar>
 	<hr>
 	<input type=submit name=sqlite value=sqlite>
 	<input type=submit name=updvol value=updvol>
@@ -1039,15 +1072,22 @@ FINN;
 
 		$cant = 0;
 		if( count($pra)){
+			echo "<div class=precio><span>" . str_pad( "tck fec", 20, " ", STR_PAD_LEFT ). "</span>"
+			. "<span>" .  str_pad( "close", 10, " ", STR_PAD_LEFT ) . "</span>"
+			. "<span>" . str_pad( "montop", 20, " ", STR_PAD_LEFT ). "</span>"
+			. "<span>" . str_pad( "vol", 18, " ", STR_PAD_LEFT ). "</span>"
+			. "<span>" . str_pad( "obs", 10, " ", STR_PAD_LEFT ) . "</span>"
+			. "</div>";
+
 			foreach( $pra as $key => $pr ){
 				if( $cant == 0 )
 					$fechaparaopc = $pr["fec"];
 
-				echo "<div class=precio><span>" . $tx . " " . $pr["fec"] . "</span>"
+				echo "<div class=precio><span>" . str_pad( $tx . " " . $pr["fec"], 20, " ", STR_PAD_LEFT ). "</span>"
 				. "<span>" .  str_pad( number_format( (float) $pr["close"], 2, '.', ',' ), 10, " ", STR_PAD_LEFT ) . "</span>"
-				. "<span> " . str_pad( number_format( (float) $pr["montop"], 2, '.', ',' ), 15, " ", STR_PAD_LEFT ). "</span>"
-				. "<span> " . str_pad( number_format( (float) $pr["vol"], 0, '.', ',' ), 15, " ", STR_PAD_LEFT ). "</span>"
-				. "<span> " . $pr["obs"] . "</span>"
+				. "<span>" . str_pad( number_format( (float) $pr["montop"], 2, '.', ',' ), 20, " ", STR_PAD_LEFT ). "</span>"
+				. "<span>" . str_pad( number_format( (float) $pr["vol"], 0, '.', ',' ), 18, " ", STR_PAD_LEFT ). "</span>"
+				. "<span>" . str_pad( $pr["obs"], 10, " ", STR_PAD_LEFT ) . "</span>"
 				. "</div>";
 				$cant++;
 
@@ -1056,6 +1096,16 @@ FINN;
 		//mostramos las opciones del share
 		$opca = assets( 'todos', $tx, 'opc', 1 );
 		if( count($opca ) ){
+					echo "<div class=precioopc><span>" . str_pad( "tck fec", 25, " ", STR_PAD_LEFT ) . "</span>"
+				. "<span>" .  str_pad( "close", 10, " ", STR_PAD_LEFT ) . "</span>"
+				. "<span>" . str_pad( "montop", 15, " ", STR_PAD_LEFT ). "</span>"
+				. "<span>" . str_pad( "vol", 10, " ", STR_PAD_LEFT ). "</span>"
+				. "<span>" . str_pad( "obs", 10, " ", STR_PAD_LEFT ) . "</span>"
+				. "<span>" . str_pad( "cantop", 10, " ", STR_PAD_LEFT ) . "</span>"
+				. "<span>" . str_pad( "bid", 10, " ", STR_PAD_LEFT ) . str_pad( "bidq", 10, " ", STR_PAD_LEFT ) . "</span>"
+				. "<span>" . str_pad( "ask", 10, " ", STR_PAD_LEFT ) . str_pad( "askq", 10, " ", STR_PAD_LEFT ) . "</span>"
+				. "</div>";
+
 			foreach( $opca as $key2 => $opc ){
 				$popc = preciosdb( $opca[$key2]["tck"], $fechaparaopc, $fechaparaopc, 1 );
 				if( !is_array( $popc ) && $popc == false ){
@@ -1063,11 +1113,16 @@ FINN;
 				}
 
 				if( count($popc) ){
-					echo "<div class=precioopc><span>" . $opca[$key2]["tck"] . " " . $fechaparaopc . "</span>"
+					echo "<div class=precioopc><span>" . str_pad( $opca[$key2]["tck"] . " " . $fechaparaopc, 25, " ", STR_PAD_LEFT ) . "</span>"
 					. "<span>" .  str_pad( number_format( (float) $popc[0]["close"], 2, '.', ',' ), 10, " ", STR_PAD_LEFT ) . "</span>"
-					. "<span> " . str_pad( number_format( (float) $popc[0]["montop"], 2, '.', ',' ), 15, " ", STR_PAD_LEFT ). "</span>"
-					. "<span> " . str_pad( number_format( (float) $popc[0]["vol"], 0, '.', ',' ), 15, " ", STR_PAD_LEFT ). "</span>"
-					. "<span> " . $popc[0]["obs"] . "</span>"
+					. "<span>" . str_pad( number_format( (float) $popc[0]["montop"], 2, '.', ',' ), 15, " ", STR_PAD_LEFT ). "</span>"
+					. "<span>" . str_pad( number_format( (float) $popc[0]["vol"], 0, '.', ',' ), 10, " ", STR_PAD_LEFT ). "</span>"
+					. "<span>" . str_pad( $popc[0]["obs"], 10, " ", STR_PAD_LEFT ) . "</span>"
+					. "<span>" . str_pad( number_format( (float) $popc[0]["cantop"], 0, '.', ',' ), 10, " ", STR_PAD_LEFT ). "</span>"
+					. "<span>" . str_pad( number_format( (float) $popc[0]["bid"], 2, '.', ',' ), 10, " ", STR_PAD_LEFT ) 
+					 . str_pad( "[" . number_format( (float) $popc[0]["bidq"], 0, '.', ',' ) . "]", 10, " ", STR_PAD_LEFT ) . "</span>"
+					. "<span>" . str_pad( number_format( (float) $popc[0]["ask"], 2, '.', ',' ), 10, " ", STR_PAD_LEFT )
+				 	 . str_pad( "[" . number_format( (float) $popc[0]["askq"], 0, '.', ',' ) . "]", 10, " ", STR_PAD_LEFT ) . "</span>"
 					. "</div>";
 				} //fin hay precio <> 0 para la opcion
 			} //fin recorrida de opciones
@@ -1158,6 +1213,129 @@ FINN;
 
 
 	return $cant;
+}
+
+//------------------------------------------------
+// opc collar
+//------------------------------------------------
+function opc_collar( $tck, $lotes = 1 ){
+	echo "<div class=debug>collar invocado para $lotes lotes de $tck</div>";
+
+	//yo llamo "collar" a lo siguiente,,,no se si es lo que verdaderamente significa, pero por ahora le pongo
+	// ese nombre a falta de otro :-) (orl, 10032018)		
+	// --https://docs.google.com/spreadsheets/d/1H_kYMdOdtQfdzTahXCtJj3SpL9LJa3lkIyIM4CSPod0/edit#gid=416901632
+	//						
+	//comision min(iva incl) 42.35(k4)
+	//comision(iva incl) 0.01 (k6)
+	//
+	//apbr(shr) 			cotiza a 	148.5(g4)		
+	//pbrc130.ab(call)	tiene strike	130(e5)	cotiza a	24(g5) <- el strike debe ser mayor a precioef
+	//pbrv130.ab(put)	tiene strike	130(e6)	cotiza a	1.7(g6) <- el strike debe ser mayor a precioef
+
+	//compro	100(d9=d10*100)	shares de	(shr)
+	//lanzo	1(d10)	lote de	(call)
+	//compro	1(d12)	lote de	(put)
+	//precioef = 128.1085 k9=G4*(1+K6)+if(G6*K6*D9<K4,G6+K4/D9,G6*(1+K6))-G5
+
+	//ESCEN 1	pbr cotiza a mas de 	130(e5)
+	//entonces me ejercen el call
+	//precioef = 128.7 k16=E5*(1-K6)
+	//resultado = 0.46% k17=(K16-K9)/K9
+	
+
+	//ESCEN 2	apbr 	cotiza a menos de 130(e6)
+	//entonces ejerzo	el put
+	//precioef = 128.7 =E6*(1-K6) 
+	//resultado = 0.46% k23=(K22-K9)/K9
+
+	//***
+
+	//comision min(iva incl) 42.35(k4)
+	$k4 = 42.35;
+	echo "<div class=debug>comision min(iva incl) $k4 </div>";
+
+	//comision(iva incl) 0.01 (k6)
+	$k6 = 0.01;
+	echo "<div class=debug>comision(iva incl) $k6</div>";
+
+	//apbr(shr) 			cotiza a 	148.5(g4)		
+	$hoy = fecha_hoy();
+	$shr= $tck;
+	$g4 = cotizdb( $shr, "close", $hoy );
+	if( $g4 < 0 ){
+		loguear( "collar: cotizdb volvio con $g4 para $shr $hoy", "error" );
+		return 1;
+	}
+	echo "<div class=debug>shr $shr cotiza $hoy a $g4</div>";
+
+	//pbrc130.ab(call)	tiene strike	130(e5)	cotiza a	24(g5) <- el strike debe ser mayor a precioef
+	$call = "pbrc130.ab";
+	$e5 = opc_strike( $call );
+	$g5 = cotizdb( $call, "bid", $hoy );
+	if( $g5 < 0 ){
+		loguear( "collar: cotizdb volvio con $g5 para $call $hoy", "error" );
+		return 1;
+	}
+	echo "<div class=debug>call $call tiene strike	$e5 cotiza a $g5 <- el strike debe ser mayor a precioef</div>";
+
+	//pbrv130.ab(put)	tiene strike	130(e6)	cotiza a	1.7(g6) <- el strike debe ser mayor a precioef
+	$put = "pbrv130.ab";
+	$e6 = opc_strike( $put );
+	$g6 = cotizdb( $put, "ask", $hoy );
+	if( $g6 < 0 ){
+		loguear( "collar: cotizdb volvio con $g6 para $call $hoy", "error" );
+		return 1;
+	}
+	echo "<div class=debug>put $put tiene strike	$e6 cotiza a $g6 <- el strike debe ser mayor a precioef</div>";
+
+	//lanzo	1(d10)	lote de	(call)
+	$d10 = $lotes;
+	//compro	1(d12=d10)	lote de	(put)
+	$d12 = $d10;
+	//compro	100(d9=d10*100)	shares de	(shr)
+	$d9 = $d10 * 100;
+
+	//precioef = 128.1085 k9=G4*(1+K6)+if(G6*K6*D9<K4,G6+K4/D9,G6*(1+K6))-G5
+	$k9 = $g4*(1+$k6);
+	if( $g6 * $k6 * $d9 < $k4 )
+		$aux = $g6 + $k4 / $d9;
+	else
+		$aux = $g6 * ( 1 + $k6 );
+
+	$k9 = $k9 + $aux - $g5;
+	$precioef = $k9;
+	echo "<div class=debug>precioef_shr = $precioef = k9 = G4 $g4 * ( 1 + k6 $k6 ) + if ( g6 $g6 * k6 $k6 * d9 $d9 < k4 $k4, g6 $g6 + k4 $k4 / d9 $d9, g6 $g6 * (1+ k6 $k6 ) ) - g5 $g5 </div>";
+
+	//ESCEN 1	pbr cotiza a mas de 	130(e5)
+	//entonces me ejercen el call
+	//precioef = 128.7 k16=e5*(1-k6)
+	$k16 = $e5 * ( 1 - $k6);
+	$precioef_esc1 = $k16;
+	echo "<div class=debug>precioef_esc1 = $k16 = k16 = e5 $35 * ( 1 - k6 $k6 )</div>";
+
+	//resultado = 0.46% k17=(k16-k9)/k9
+	$k17 = ( $k16 - $k9 ) / $k9;
+	$k17 = round( $k17, 4 );
+	$result_esc1 = $k17;
+	echo "<div class=debug>result_esc1 = $k17 = k17 = ( k16 $k16 - k9 $k9 ) / k9 $k9</div>";
+	
+	//ESCEN 2	apbr 	cotiza a menos de 130(e6)
+	//entonces ejerzo	el put
+	//precioef = 128.7 k22=e6*(1-k6) 
+	$k22 = $e6 * ( 1 - $k6 );
+	$precioef_esc2 = $k22;
+	echo "<div class=debug>precioef_esc2 = $k22 = k22 = e6 $36 * ( 1 - k6 $k6 )</div>";
+
+	//resultado = 0.46% k23=(k22-k9)/k9
+	$k23 = ($k22-$k9 ) / $k9;
+	$k23 = round( $k23, 4 );
+	$result_esc2 = $k23;
+	echo "<div class=debug>result_esc2 = $k23 = k23 = ( k22 $k22 - k9 $k9 ) / k9 $k9</div>";
+
+	$result_esc1pje = number_format( (float) $result_esc1 * 100, 2, '.', '' ) . "%";
+	$result_esc2pje = number_format( (float) $result_esc2 * 100, 2, '.', '' ) . "%";
+	echo "<div class=collar>$shr $call $put: $result_esc1pje $result_esc2pje</div>\n";
+	return;
 }
 
 ?>

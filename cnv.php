@@ -225,7 +225,9 @@ function bal( $ass ){
 	foreach( $files as $k => $v ){
 		$fx = file_cnv2loc( $v );
 		$fx = $basedir . "/" . $fx;
-		if( file_exists( $fx ) ){
+		$pathparts = pathinfo( $fx );
+		$fxunzipped = $pathparts["filename"];
+		if( file_exists( $fx ) || file_exists( $basedir . "/" . $fxunzipped ) ){
 			loguear( "bal $tck: $fx ya existe" );
 		}
 		else {

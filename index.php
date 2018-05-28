@@ -358,12 +358,22 @@ function upd( $tck, $bearer ){
 	$cant = pers( $tck, $de, $a, $bearer );
 	if( $cant >= 0 ){
 		loguear( "upd $tck: $cant precios registrados" );
-		return 0;
 	}
 	else {
 		loguear( "upd $tck: problemas registrando precios", "error" );
 		return 1;
 	}
+
+	$cant = updvol( $tck, fecha_offset( $a, -15 ), fecha_offset( $a, -1 ), $bearer );
+	if( $cant >= 0 ){
+		loguear( "upd $tck: $cant vols actualizados" );
+		return 0;
+	}
+	else {
+		loguear( "upd $tck: problemas actualizando vols", "error" );
+		return 1;
+	}
+
 }
 
 
@@ -812,11 +822,19 @@ function precios( $tck, $de, $a, $bearer ){
 
 		$ulth = substr( $preciosa[ count($preciosa)-1 ]["fechaHora"], 0, 10 );
 		$ultc = substr( $cotiz["fechaHora"], 0, 10 );
+
 		//en algun momento la historica lo trae, chequeamos si lo trajo a hoy, para no meterlo dos veces en el a-rray
 		//ademas chequeamos que la cotiz recibida no sea anterior al hasta solicitado
-		if( $ultc != $ulth && $ultc >= $a ){
+		if( count( $preciosa ) == 0 
+		 || ( count( $preciosa ) > 0 && $ultc != $ulth && $ultc >= $a ) ){
+			loguear( "precios $tck: agregando cotiz a precios" );
 			$cotiz["sinvol"] = 1;
-			array_unshift( $preciosa, $cotiz );
+			if( count( $preciosa ) == 0 ){
+				$preciosa[0] = $cotiz;
+			}
+			else {
+				array_unshift( $preciosa, $cotiz );
+			}
 			$hayprecios = 1;
 		}
 	}
@@ -1233,9 +1251,11 @@ FINN;
 //------------------------------------------------
 // updvol
 //------------------------------------------------
-function updvol( $tck, $de = "2018-01-01", $a = "hoy", $bearer ){
-	if( $a == "hoy" )
-		$a = fecha_hoy();
+function updvol( $tck, $de, $a, $bearer ){
+	if( $a == fecha_hoy() ){
+		loguear( "updv: por favor no pedir fecha hoy inclusive ya que iol informa historicos con un dia de atraso", "error" );
+		return;
+	}
 
 	$database = 'mkt';
 	$dsn = "sqlite:$database.db";
@@ -1243,7 +1263,7 @@ function updvol( $tck, $de = "2018-01-01", $a = "hoy", $bearer ){
 	try {
 		$pdo = new PDO( $dsn ); // sqlite
 	} catch( PDOException $e ) {
-		loguear( "pdb: error en conn: " . $e->getMessage(), "error" );
+		loguear( "updv: error en conn: " . $e->getMessage(), "error" );
 		return;
 	}
 
@@ -1252,7 +1272,7 @@ function updvol( $tck, $de = "2018-01-01", $a = "hoy", $bearer ){
   $pdo->beginTransaction();
 
 	//pds es un objeto pdostatement , que define interfaz iterable, por eso funciona el foreach 
-	$sql = "select * from as_pr ap where ap.tck = '" . $tck . "' and ap.fec between '" . $de . "' and '" . $a . "' and obs = 'sinvol' order by fec desc";
+	$sql = "select * from as_pr ap where ap.tck = '" . $tck . "' and ap.fec between '" . $de . "' and '" . $a . "' and obs = 'sinvol' order by fec";
 	try {
 		$pds = $pdo->query( $sql );
 	} catch( PDOException $e ) {

@@ -98,6 +98,9 @@ sudo chown www-data mkt.db
 sudo chgrp eliveuser mkt.db
 sudo chmod 664 mkt.db
 
+
+***
+
 create table asset (
 	tck,
 	den,
@@ -131,6 +134,17 @@ create table as_pr(
 	askq 
 	primary key( tck, fec )
 );
+
+***
+
+create table bal( tck, anio, hasta, cuenta, val );
+
+create table balcue( cuenta, descr, unidad, obs );
+
+
+***
+
+--merval
 
 create table aux_merval(
  fecha,
@@ -180,6 +194,7 @@ wget -c -O $x.csv http://www.ravaonline.com/v2/empresas/precioshistoricos.php?e=
 done
 
 for x in bma brio capx ceco2 ctio loma rich std tef petr pgr; do
+rm $x.0.csv
 awk -vt=$x ' NR >= 2 { print t "," $0}' $x.csv >> $x.0.csv
 done
 
@@ -202,6 +217,11 @@ create temporary table tmp_rava( tck, fecha, apertura, maximo, minimo, cierre, v
 delete from as_pr where tck in ( 
 'bma', 'brio', 'capx', 'ceco2', 'ctio', 'loma', 'rich', 'std', 'tef', 'petr', 'pgr'
 )
+
+select count(*) cant, r.tck, r.fecha
+from tmp_rava r
+group by r.tck, r.fecha
+having count(*) > 1
 
 insert into as_pr( tck, fec, open, max, min, close, vol )
 select r.tck, r.fecha, r.apertura, r.maximo, r.minimo, r.cierre, r.volumen from tmp_rava r;
@@ -248,6 +268,41 @@ insert into asset( tck, den, sect, mkt ) values ( 'alu', 'aluminium lme', 'comm'
 insert into as_pr( tck, fec, open, max, min, close, vol )
 select 'alu', q.date, q.cb, q.cb, q.cb, q.cb, 0 from tmp_quandl q;
 
+
+#wti crude oil continuation 1 (nymex CLc1)
+
+https://www.quandl.com/data/CHRIS/CME_CL1
+https://www.quandl.com/api/v3/datasets/CHRIS/CME_CL1.csv?api_key=syLZGUe6mpvGgS6XMKjx&start_date=1918-04-01
+
+tail -n+2 CHRIS-CME_CL1.csv > CHRIS-CME_CL1_.csv
+
+create temporary table tmp_quandl( date,open,high,low,last,change,settle,volume,pdoi);
+
+.separator ","
+.import CHRIS-CME_CL1_.csv tmp_quandl
+
+insert into asset( tck, den, sect, mkt ) values ( 'wti', 'wti crude oil (nymex CLc1)', 'comm', 'nymex' );
+
+insert into as_pr( tck, fec, open, max, min, close, vol )
+select 'wti', q.date, q.open, q.high, q.low, q.settle, volume from tmp_quandl q;
+
+#soybean continuation 1 (cbot Sc1)
+
+https://www.quandl.com/data/CHRIS/CME_S1
+https://www.quandl.com/api/v3/datasets/CHRIS/CME_S1.csv?api_key=syLZGUe6mpvGgS6XMKjx
+
+tail -n+2 CHRIS-CME_S1.csv > CHRIS-CME_S1_.csv
+
+create temporary table tmp_quandl( date,open,high,low,last,change,settle,volume,pdoi);
+
+.separator ","
+.import CHRIS-CME_S1_.csv tmp_quandl
+
+insert into asset( tck, den, sect, mkt ) values ( 'soyb', 'soybean (cbot Sc1)', 'comm', 'cbot' );
+
+insert into as_pr( tck, fec, open, max, min, close, vol )
+select 'soyb', q.date, q.open, q.high, q.low, q.settle, volume from tmp_quandl q;
+
 #merval
 
 for x in merval; do
@@ -273,3 +328,182 @@ delete from as_pr where tck in (
 
 insert into as_pr( tck, fec, open, max, min, close, vol )
 select r.tck, r.fecha, r.apertura, r.maximo, r.minimo, r.cierre, r.volumen from tmp_rava r;
+
+
+***
+
+dolar
+
+wget -c -O dolar.csv "https://docs.google.com/spreadsheets/d/1pixRym_MficABseercu26r9eYa69zHOFQj7g_HtWmT4/gviz/tq?tqx=out:csv&sheet=dolar"
+
+rm dolar.0.csv
+awk -vt=$x ' /Fecha/,/FINN/ { print }' dolar.csv  | grep -v FINN | grep -v Fecha >> dolar.0.csv
+
+wget -c -O dolarccl.csv "https://docs.google.com/spreadsheets/d/1pixRym_MficABseercu26r9eYa69zHOFQj7g_HtWmT4/gviz/tq?tqx=out:csv&sheet=dolarccl"
+
+rm dolarccl.0.csv
+awk ' NR >= 2 { print }' dolarccl.csv >> dolarccl.0.csv
+echa/,/FINN/ { print }' dolar.csv  | grep -v FINN | grep -v Fecha >> dolar.0.csv
+
+
+create temporary table tmp_dolar( fecha, compra, venta, dia, mes, anio, aniomes, vend , aniomesdia, nul1, nul2 );
+.separator ","
+.import dolar.0.csv tmp_dolar
+
+insert into as_pr( tck, fec, open, close )
+select 
+ 'usdars' tck, 
+ substr( aniomesdia, 1, 4 ) || '-' || substr( aniomesdia, 5, 2 ) || '-' || substr( aniomesdia, 7, 2 ) fec,
+ max( vend ) open, max( vend ) close
+from tmp_dolar
+where aniomesdia > "20180314"
+group by aniomesdia
+order by aniomesdia desc;
+
+insert into asset( tck, den, tipo )
+values ( 'usdars', 'usdars', 'fx' )
+
+--contado con liqui
+update as_pr
+set obs = close
+where tck = 'usdars'
+and fec between '2011-01-03' and '2015-12-17';
+
+--contado con liqui
+update as_pr
+set open = null, close = null
+where tck = 'usdars'
+and fec between '2011-01-03' and '2015-12-17'
+and obs is not null;
+
+create temporary table tmp_dolarccl( valor,  fecha, nul );
+.separator ","
+.import dolarccl.0.csv tmp_dolarccl
+
+update tmp_dolarccl
+set fecha = substr( fecha, 1, 4 ) || '-' || substr( fecha, 5, 2 ) || '-' || substr( fecha, 7, 2 ) 
+
+
+update as_pr
+set close = (
+select c.valor
+from tmp_dolarccl c
+where c.fecha = (
+ select max( c2.fecha )
+ from tmp_dolarccl c2
+ where c2.fecha <= fec
+) 
+)
+where 
+tck = 'usdars'
+and fec between '2011-01-03' and '2015-12-17'
+and close is null
+and obs is not null;
+
+
+update as_pr
+set open = close
+where 
+tck = 'usdars'
+and fec between '2011-01-03' and '2015-12-17'
+and open is null;
+
+***
+
+usdbrl
+
+#requiere login
+https://www.investing.com/instruments/DownloadHistoricalData?curr_id=2103&smlID=107254&header=USD%2FBRL+Historical+Data&st_date=01%2F01%2F1992&end_date=12%2F31%2F2011&interval_sec=Daily&sort_col=date&sort_ord=DESC
+https://www.investing.com/instruments/DownloadHistoricalData?curr_id=2103&smlID=107254&header=USD%2FBRL+Historical+Data&st_date=01%2F01%2F2012&end_date=03%2F31%2F2018&interval_sec=Daily&sort_col=date&sort_ord=DESC
+
+cat usdbrl2.csv >> usdbrl1.csv
+grep -v Change usdbrl1.csv | grep -v Highest > usdbrl.csv
+
+create temporary table tmp_usdbrl( date, price, open, high, low, change );
+
+.separator ","
+.import usdbrl.csv tmp_usdbrl
+
+insert into as_pr( tck, fec, open, close, min, max )
+select 'usdbrl' tck,
+	substr( date, 9, 4 )  
+	|| '-'
+	|| case substr( date, 1, 3 ) 
+	when 'Jan' then '01'
+	when 'Feb' then '02'
+	when 'Mar' then '03'
+	when 'Apr' then '04'
+	when 'May' then '05'
+	when 'Jun' then '06'
+	when 'Jul' then '07'
+	when 'Aug' then '08'
+	when 'Sep' then '09'
+	when 'Oct' then '10'
+	when 'Nov' then '11'
+	when 'Dec' then '12'
+	else '00' end
+	|| '-' || substr( date, 5, 2 ) date,
+open,
+price,
+low,
+high
+from tmp_usdbrl
+
+insert into asset( tck, den, tipo )
+values ( 'usdbrl', 'usdbrl', 'fx' )
+
+
+#pbr
+
+https://www.investing.com/equities/petroleo-bras-historical-data
+https://www.investing.com/instruments/DownloadHistoricalData?curr_id=8028&smlID=1160986&header=PBR+Historical+Data&st_date=03%2F09%2F1986&end_date=04%2F09%2F2018&interval_sec=Daily&sort_col=date&sort_ord=DESC
+
+mv ../Downloads/PBR\ Historical\ Data.csv pbr.csv
+
+tail -n+2 pbr.csv | head -n-2 > pbr_.csv
+
+
+create temporary table tmp_invest( date, price, open, high, low, vol, change );
+
+.separator ","
+.import pbr_.csv tmp_invest
+
+insert into as_pr( tck, fec, open, close, min, max, vol )
+select 'pbr' tck,
+	substr( date, 9, 4 )  
+	|| '-'
+	|| case substr( date, 1, 3 ) 
+	when 'Jan' then '01'
+	when 'Feb' then '02'
+	when 'Mar' then '03'
+	when 'Apr' then '04'
+	when 'May' then '05'
+	when 'Jun' then '06'
+	when 'Jul' then '07'
+	when 'Aug' then '08'
+	when 'Sep' then '09'
+	when 'Oct' then '10'
+	when 'Nov' then '11'
+	when 'Dec' then '12'
+	else '00' end
+	|| '-' || substr( date, 5, 2 ) date,
+open,
+price,
+low,
+high,
+vol
+from tmp_invest
+
+insert into asset( tck, den, sect, tipo, mkt ) values ( 'pbr', 'petrobras', 'petroleo', 'acc', 'nyse' );
+
+update as_pr
+
+update as_pr
+set vol = substr( vol, 1, length(vol)-1 ) * 1000 
+where tck = 'pbr'
+and vol like '%K%'
+
+update as_pr
+set vol = substr( vol, 1, length(vol)-1 ) * 1000000 
+where tck = 'pbr'
+and vol like '%M%'

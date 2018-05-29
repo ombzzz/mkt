@@ -1,3 +1,53 @@
+
+setup en c9
+
+1 new workspace
+2 clone from git
+3 https://github.com/ombzzz/mkt.git
+4 template: blank
+5 create workspace
+
+6
+
+sudo vi /etc/nginx/sites-enabled/default   
+
+server {
+	listen 8080 default_server;
+	listen [::]:8080 default_server ipv6only=on;
+
+	#root /usr/share/nginx/html;
+	root /home/ubuntu/workspace;
+	index index.html index.htm;
+
+	# Make site accessible from http://localhost/
+	server_name localhost;
+
+	location / {
+	# First attempt to serve request as file, then
+	# as directory, then fall back to displaying a 404.
+	try_files $uri $uri/ =404;
+	# Uncomment to enable naxsi on this location
+	# include /etc/nginx/naxsi.rules
+	}
+
+	location ~ \.php$ {
+	fastcgi_split_path_info ^(.+\.php)(/.+)$;
+	#       # NOTE: You should have "cgi.fix_pathinfo = 0;" in php.ini
+	#
+	#       # With php5-cgi alone:
+	#       fastcgi_pass 127.0.0.1:9000;
+	#       # With php5-fpm:
+	fastcgi_pass unix:/var/run/php5-fpm.sock;
+	fastcgi_index index.php;
+	include fastcgi_params;
+}    
+
+7 sudo apt-get install php5-curl
+
+8 http://mkt-obiazzi.c9users.io:8080/index.php
+
+***
+
 echo "# mkt" >> README.md
 git init
 git add README.md
@@ -360,8 +410,8 @@ where aniomesdia > "20180314"
 group by aniomesdia
 order by aniomesdia desc;
 
-insert into asset( tck, den, tipo )
-values ( 'usdars', 'usdars', 'fx' )
+insert into asset( tck, den, tipo )v
+alues ( 'usdars', 'usdars', 'fx' )
 
 --contado con liqui
 update as_pr

@@ -336,6 +336,41 @@ insert into asset( tck, den, sect, mkt ) values ( 'wti', 'wti crude oil (nymex C
 insert into as_pr( tck, fec, open, max, min, close, vol )
 select 'wti', q.date, q.open, q.high, q.low, q.settle, volume from tmp_quandl q;
 
+
+#wti inflation adjusted
+
+http://www.macrotrends.net/assets/php/chart_iframe_comp.php?id=1369&url=crude-oil-price-history-chart
+
+inspect element 
+
+ubicar los datos en 
+
+	var originalData = [{"id":"DCOILWTICO","date":"1946-01-01","close":"16.17","close1":"1.170"},
+
+	var chartConfig = {
+    type: "stock",
+	precision: 2,
+
+
+convert a result.csv
+
+"id","date","close","close1"
+"DCOILWTICO","1946-01-01","16.17","1.170"
+
+tail -n+2 result.csv > wti-infl-adj.csv
+
+create temporary table tmp_quandl( date,open,high,low,last,change,settle,volume,pdoi);
+
+.separator ","
+.import CHRIS-CME_CL1_.csv tmp_quandl
+
+insert into asset( tck, den, sect, mkt ) values ( 'wti', 'wti crude oil (nymex CLc1)', 'comm', 'nymex' );
+
+insert into as_pr( tck, fec, open, max, min, close, vol )
+select 'wti', q.date, q.open, q.high, q.low, q.settle, volume from tmp_quandl q;
+
+
+
 #soybean continuation 1 (cbot Sc1)
 
 https://www.quandl.com/data/CHRIS/CME_S1
@@ -352,6 +387,7 @@ insert into asset( tck, den, sect, mkt ) values ( 'soyb', 'soybean (cbot Sc1)', 
 
 insert into as_pr( tck, fec, open, max, min, close, vol )
 select 'soyb', q.date, q.open, q.high, q.low, q.settle, volume from tmp_quandl q;
+
 
 #merval
 

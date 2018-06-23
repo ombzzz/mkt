@@ -18,6 +18,7 @@ input {
 .precio{
 	white-space: pre-wrap;
 	font-family: "courier new";
+	/*font-size: 6;*/
 }
 
 .precioopc{
@@ -25,6 +26,7 @@ input {
 	font-family: "courier new";
 	color: blue;
 	margin-left: 30px;
+	/*font-size: 6;*/
 }
 
 .precio span, .precioopc span{
@@ -811,8 +813,8 @@ function precios( $tck, $de, $a, $bearer ){
 		return false;
 	}
 
-	if( $a == fecha_hoy() ){
-		loguear( "precios $tck: $a es hoy => llamando a cotiz" );
+	if( $de == fecha_hoy() && $a == fecha_hoy() ){
+		loguear( "precios $tck: de $de y a $a es hoy => llamando a cotiz" );
 		//serie historica no devuelve el precio de hoy, lo buscamo434s por cotizacion
 		$cotiz = cotiz( $bearer, $tck );
 		if( !is_array( $cotiz ) && $cotiz == false ){
@@ -852,7 +854,7 @@ function precios( $tck, $de, $a, $bearer ){
 function panel( $bearer, $panel ){
 
 	///api/{pais}/Titulos/Cotizacion/Paneles/{instrumento}
-	//pais: argentina, brasil, chile, colombia, estados_unidos, mexico, peru
+	//pais: argentina, brasil, chile, colombcia, estados_unidos, mexico, peru
 	//instrumento: Acciones, Bonos, Opciones, Monedas, Cauciones, cHPD, Futuros
 		
 	//GET /api/Cotizaciones/{Instrumento}/{Panel}/{Pais}

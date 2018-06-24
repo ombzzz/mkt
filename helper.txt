@@ -657,3 +657,45 @@ set vol = substr( vol, 1, length(vol)-1 ) * 1000000
 where tck = 'pbr'
 and vol like '%M%'
 
+# brasil pbi
+
+insert into asset( tck, den, sect, tipo, mkt ) values ( 'brs.pbi', 'brasil pbi (exchange rate)', 'macro', 'var', 'brasil' );
+
+insert into as_pr( tck, fec, open, close ) values ( 'brs.pbi', '2017-01-01',2055000000,2055000000);
+insert into as_pr( tck, fec, open, close ) values ( 'brs.pbi', '2016-01-01',1797000000,1797000000);
+insert into as_pr( tck, fec, open, close ) values ( 'brs.pbi', '2015-01-01',1796000000,1796000000);
+insert into as_pr( tck, fec, open, close ) values ( 'brs.pbi', '2014-01-01',2454000000,2454000000);
+insert into as_pr( tck, fec, open, close ) values ( 'brs.pbi', '2013-01-01',2391000000,2391000000);
+insert into as_pr( tck, fec, open, close ) values ( 'brs.pbi', '2012-01-01',2412000000,2412000000);
+insert into as_pr( tck, fec, open, close ) values ( 'brs.pbi', '2011-01-01',2613000000,2613000000);
+insert into as_pr( tck, fec, open, close ) values ( 'brs.pbi', '2010-01-01',2209000000,2209000000);
+insert into as_pr( tck, fec, open, close ) values ( 'brs.pbi', '2009-01-01',1667000000,1667000000);
+insert into as_pr( tck, fec, open, close ) values ( 'brs.pbi', '2008-01-01',1695000000,1695000000);
+insert into as_pr( tck, fec, open, close ) values ( 'brs.pbi', '2007-01-01',1396000000,1396000000);
+insert into as_pr( tck, fec, open, close ) values ( 'brs.pbi', '2006-01-01',1108000000,1108000000);
+insert into as_pr( tck, fec, open, close ) values ( 'brs.pbi', '2005-01-01',892000000,892000000);
+insert into as_pr( tck, fec, open, close ) values ( 'brs.pbi', '2004-01-01',670000000,670000000);
+insert into as_pr( tck, fec, open, close ) values ( 'brs.pbi', '2003-01-01',559000000,559000000);
+insert into as_pr( tck, fec, open, close ) values ( 'brs.pbi', '2002-01-01',511000000,511000000);
+insert into as_pr( tck, fec, open, close ) values ( 'brs.pbi', '2001-01-01',560000000,560000000);
+insert into as_pr( tck, fec, open, close ) values ( 'brs.pbi', '2000-01-01',657000000,657000000);
+insert into as_pr( tck, fec, open, close ) values ( 'brs.pbi', '1999-01-01',602000000,602000000);
+insert into as_pr( tck, fec, open, close ) values ( 'brs.pbi', '1998-01-01',867000000,867000000);
+insert into as_pr( tck, fec, open, close ) values ( 'brs.pbi', '1997-01-01',887000000,887000000);
+insert into as_pr( tck, fec, open, close ) values ( 'brs.pbi', '1996-01-01',854000000,854000000);
+insert into as_pr( tck, fec, open, close ) values ( 'brs.pbi', '1995-01-01',786000000,786000000);
+insert into as_pr( tck, fec, open, close ) values ( 'brs.pbi', '1994-01-01',558000000,558000000);
+insert into as_pr( tck, fec, open, close ) values ( 'brs.pbi', '1993-01-01',448000000,448000000);
+insert into as_pr( tck, fec, open, close ) values ( 'brs.pbi', '1992-01-01',399000000,399000000);
+insert into as_pr( tck, fec, open, close ) values ( 'brs.pbi', '1991-01-01',417000000,417000000);
+insert into as_pr( tck, fec, open, close ) values ( 'brs.pbi', '1990-01-01',475000000,475000000);
+insert into as_pr( tck, fec, open, close ) values ( 'brs.pbi', '1989-01-01',459000000,459000000);
+insert into as_pr( tck, fec, open, close ) values ( 'brs.pbi', '1988-01-01',334000000,334000000);
+insert into as_pr( tck, fec, open, close ) values ( 'brs.pbi', '1987-01-01',299000000,299000000);
+insert into as_pr( tck, fec, open, close ) values ( 'brs.pbi', '1986-01-01',275000000,275000000);
+insert into as_pr( tck, fec, open, close ) values ( 'brs.pbi', '1985-01-01',237000000,237000000);
+insert into as_pr( tck, fec, open, close ) values ( 'brs.pbi', '1984-01-01',149000000,149000000);
+insert into as_pr( tck, fec, open, close ) values ( 'brs.pbi', '1983-01-01',150000000,150000000);
+insert into as_pr( tck, fec, open, close ) values ( 'brs.pbi', '1982-01-01',187000000,187000000);
+insert into as_pr( tck, fec, open, close ) values ( 'brs.pbi', '1981-01-01',175000000,175000000);
+insert into as_pr( tck, fec, open, close ) values ( 'brs.pbi', '1980-01-01',152000000,152000000);
